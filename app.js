@@ -32,7 +32,9 @@ mongoose
     console.log(e);
   });
 require("./userDetail");
+require("./tripDetails");
 const User = mongoose.model("UserInfo");
+const Trip = mongoose.model("tripInfo");
 
 app.get("/", (req, res) => {
   res.send({ status: "Started" });
@@ -126,6 +128,39 @@ app.post("/userData", async (req, res) => {
     });
   } catch (error) {
     return res.send({ error: error });
+  }
+});
+
+app.post("/NewTrip", async (req, res) => {
+  const {
+    start,
+    destination,
+    startdate,
+    starttime,
+    enddate,
+    endtime,
+    startbid,
+    buyout,
+    description,
+  } = req.body;
+
+  try {
+    await Trip.create({
+      start: start,
+      destination: destination,
+      startdate: startdate,
+      starttime: starttime,
+      enddate: enddate,
+      endtime: endtime,
+      startbid: startbid,
+      buyout: buyout,
+      description: description,
+    });
+
+    res.send({ status: "ok", data: "Trip created" });
+  } catch (error) {
+    console.error("Error creating trip:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
