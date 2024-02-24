@@ -32,7 +32,9 @@ mongoose
     console.log(e);
   });
 require("./userDetail");
+require("./tripDetails");
 const User = mongoose.model("UserInfo");
+const Trip = mongoose.model("tripInfo");
 
 app.get("/", (req, res) => {
   res.send({ status: "Started" });
@@ -128,6 +130,78 @@ app.post("/userData", async (req, res) => {
     return res.send({ error: error });
   }
 });
+
+app.post("/NewTrip", async (req, res) => {
+  const {
+    start,
+    destination,
+    startdate,
+    starttime,
+    enddate,
+    endtime,
+    startbid,
+    buyout,
+    description,
+  } = req.body;
+
+  try {
+    await Trip.create({
+      start: start,
+      destination: destination,
+      startdate: startdate,
+      starttime: starttime,
+      enddate: enddate,
+      endtime: endtime,
+      startbid: startbid,
+      buyout: buyout,
+      description: description,
+    });
+
+    res.send({ status: "ok", data: "Trip created" });
+  } catch (error) {
+    console.error("Error creating trip:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+// Assuming you already have necessary imports and configurations
+
+// Change Password endpoint
+app.post("/ChangePassword", async (req, res) => {
+  const { email, oldpassword, password } = req.body;
+
+
+
+  try {
+    // Find the user by email
+    const user = await User.findOne({ email });
+
+    // Check if the user exists
+    if (!user) {
+      return res.status(400).json({ status: "error", error: "User not found" });
+    }
+
+    // Verify the current password
+    const isPasswordValid = await bcrypt.compare(oldpassword, user.password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ status: "error", error: "Invalid current password" });
+    }
+    
+    console.log(password)
+    // Hash the new password
+    const hashedNewPassword = await bcrypt.hash(password, 10);
+
+    // Update the user's password
+    await User.updateOne({ email }, { password: hashedNewPassword });
+
+    // Send success response
+    res.status(200).json({ status: "ok", message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 
 app.listen(process.env.PORT, () => {
   console.log("Node js server started");
