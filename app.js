@@ -1,9 +1,9 @@
 const express = require("express");
-require('dotenv').config();
+require("dotenv").config();
 const app = express();
 const mongoose = require("mongoose");
 const cors = require("cors");
-const uploadImage = require("./UploadImage")
+const uploadImage = require("./src/UploadImage");
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ limit: "25mb" }));
@@ -31,8 +31,8 @@ mongoose
   .catch((e) => {
     console.log(e);
   });
-require("./userDetail");
-require("./tripDetails");
+require("./src/userDetail");
+require("./src/tripDetails");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
 
@@ -62,12 +62,11 @@ app.post("/Signup", async (req, res) => {
   encyptedPassword = await bcrypt.hash(password, 10);
 
   try {
-    
     const [ppUrl, fcUrl, bcUrl] = await Promise.all([
-        uploadImage(profilePic),
-        uploadImage(frontCNIC),
-        uploadImage(backCNIC)
-      ]);
+      uploadImage(profilePic),
+      uploadImage(frontCNIC),
+      uploadImage(backCNIC),
+    ]);
 
     await User.create({
       name: name,
@@ -141,7 +140,9 @@ app.post("/NewTrip", async (req, res) => {
     endtime,
     startbid,
     buyout,
+    capacity,
     description,
+    email,
   } = req.body;
 
   try {
@@ -154,13 +155,30 @@ app.post("/NewTrip", async (req, res) => {
       endtime: endtime,
       startbid: startbid,
       buyout: buyout,
+      capacity: capacity,
       description: description,
+      email: email,
     });
 
     res.send({ status: "ok", data: "Trip created" });
   } catch (error) {
     console.error("Error creating trip:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+app.post("/tripData", async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    const trip = jwt.verify(token, JWT_SECRET);
+    const tripemail = trip.email;
+
+    Trip.findOne({ email: tripemail }).then((data) => {
+      return res.send({ status: "ok", data: data });
+    });
+  } catch (error) {
+    return res.send({ error: error });
   }
 });
 
