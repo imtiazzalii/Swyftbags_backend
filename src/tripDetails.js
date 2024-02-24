@@ -12,6 +12,7 @@ const tripDetailSchema = new mongoose.Schema({
     capacity: String,
     description: String,
     email: String,
+    tmode: String,
 
 },
 {

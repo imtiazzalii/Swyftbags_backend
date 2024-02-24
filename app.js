@@ -143,6 +143,7 @@ app.post("/NewTrip", async (req, res) => {
     capacity,
     description,
     email,
+    tmode,
   } = req.body;
 
   try {
@@ -158,6 +159,7 @@ app.post("/NewTrip", async (req, res) => {
       capacity: capacity,
       description: description,
       email: email,
+      tmode: tmode,
     });
 
     res.send({ status: "ok", data: "Trip created" });
