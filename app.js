@@ -218,30 +218,31 @@ app.post("/allTrips", async (req, res) => {
 
 
 // Change Password endpoint
+// Inside the "/ChangePassword" endpoint
 app.post("/ChangePassword", async (req, res) => {
-  const { email, oldpassword, password } = req.body;
+  const { email, oldpassword, password } = req.body; // Include email in the request body
 
   try {
     // Find the user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email });
 
-    // Check if the user exists
+    // If user doesn't exist, return an error
     if (!user) {
       return res.status(400).json({ status: "error", error: "User not found" });
     }
 
+    console.log(oldpassword)
     // Verify the current password
     const isPasswordValid = await bcrypt.compare(oldpassword, user.password);
     if (!isPasswordValid) {
       return res.status(400).json({ status: "error", error: "Invalid current password" });
     }
-    
-    console.log(password)
+
     // Hash the new password
     const hashedNewPassword = await bcrypt.hash(password, 10);
 
     // Update the user's password
-    await User.updateOne({ email }, { password: hashedNewPassword });
+    await User.updateOne({ email: email }, { password: hashedNewPassword });
 
     // Send success response
     res.status(200).json({ status: "ok", message: "Password changed successfully" });
