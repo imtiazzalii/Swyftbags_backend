@@ -3,7 +3,7 @@ require("dotenv").config();
 const app = express();
 const mongoose = require("mongoose");
 const cors = require("cors");
-const uploadImage = require("./src/UploadImage");
+const uploadImage = require("./components/UploadImage");
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ limit: "25mb" }));
@@ -31,8 +31,8 @@ mongoose
   .catch((e) => {
     console.log(e);
   });
-require("./src/userDetail");
-require("./src/tripDetails");
+require("./models/userDetail");
+require("./models/tripDetails");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
 
@@ -115,8 +115,9 @@ app.post("/Login", async (req, res) => {
   }
 });
 
-app.post("/userData", async (req, res) => {
-  const { token } = req.body;
+app.get("/userData/:userId", (req, res) => {
+  //const { token } = req.body;
+  const token = req.params.userId;
 
   try {
     const user = jwt.verify(token, JWT_SECRET);
@@ -169,8 +170,8 @@ app.post("/NewTrip", async (req, res) => {
   }
 });
 
-app.post("/tripData", async (req, res) => {
-  const { token } = req.body;
+app.get("/tripData/:userId", async (req, res) => {
+  const token = req.params.userId;
 
   try {
     const trip = jwt.verify(token, JWT_SECRET);
@@ -184,7 +185,7 @@ app.post("/tripData", async (req, res) => {
   }
 });
 
-app.post("/allTrips", async (req, res) => {
+app.get("/allTrips", async (req, res) => {
   try {
     // Fetch all trips
     const allTrips = await Trip.find();
@@ -203,8 +204,8 @@ app.post("/allTrips", async (req, res) => {
           trip: trip,
           user: {
             username: user.name,
-            profilePic: user.profilePic
-          }
+            profilePic: user.profilePic,
+          },
         });
       }
     }
@@ -215,7 +216,6 @@ app.post("/allTrips", async (req, res) => {
     return res.status(500).send({ error: error.message });
   }
 });
-
 
 // Change Password endpoint
 // Inside the "/ChangePassword" endpoint
@@ -231,11 +231,13 @@ app.post("/ChangePassword", async (req, res) => {
       return res.status(400).json({ status: "error", error: "User not found" });
     }
 
-    console.log(oldpassword)
+    console.log(oldpassword);
     // Verify the current password
     const isPasswordValid = await bcrypt.compare(oldpassword, user.password);
     if (!isPasswordValid) {
-      return res.status(400).json({ status: "error", error: "Invalid current password" });
+      return res
+        .status(400)
+        .json({ status: "error", error: "Invalid current password" });
     }
 
     // Hash the new password
@@ -245,13 +247,14 @@ app.post("/ChangePassword", async (req, res) => {
     await User.updateOne({ email: email }, { password: hashedNewPassword });
 
     // Send success response
-    res.status(200).json({ status: "ok", message: "Password changed successfully" });
+    res
+      .status(200)
+      .json({ status: "ok", message: "Password changed successfully" });
   } catch (error) {
     console.error("Error changing password:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
-
 
 app.listen(process.env.PORT, () => {
   console.log("Node js server started");
