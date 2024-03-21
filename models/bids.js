@@ -2,13 +2,14 @@ const mongoose = require("mongoose");
 
 const bidSchema = new mongoose.Schema(
   {
-    senderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "userInfo",
+    bidderEmail: {
+      type: String,
+      ref: "UserInfo.email",
     },
-    receipentId: {
+    tripId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "userInfo",
+      ref: "tripInfo",
+      unique: false,
     },
     bid: {
       type: Number,

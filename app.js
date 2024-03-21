@@ -33,8 +33,10 @@ mongoose
   });
 require("./models/userDetail");
 require("./models/tripDetails");
+require("./models/bids");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
+const Bid = mongoose.model("bids");
 
 app.get("/", (req, res) => {
   res.send({ status: "Started" });
@@ -170,6 +172,33 @@ app.post("/NewTrip", async (req, res) => {
   }
 });
 
+app.post("/bid", async (req,res) => {
+  const {
+    id,
+    bid,
+    capacity,
+    token
+  } = req.body;
+
+  try{
+    const bidder = jwt.verify(token, JWT_SECRET);
+    const bidderEmail = bidder.email;
+
+    await Bid.create({
+      bidderEmail: bidderEmail,
+      tripId: id,
+      bid: bid,
+      capacity: capacity,
+    });
+
+    res.send({ status: "ok", data: "bid submitted" });
+
+  }catch(error) {
+    console.error("Error submitting bid:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 app.get("/tripData/:userId", async (req, res) => {
   const token = req.params.userId;
 
@@ -184,6 +213,38 @@ app.get("/tripData/:userId", async (req, res) => {
     return res.send({ error: error });
   }
 });
+
+app.get("/showbids/:tripId", async (req, res) => {
+  try {
+    const tripId = req.params.tripId;
+
+    // Fetch all bids with the matching tripId
+    const allBids = await Bid.find({ tripId: tripId });
+
+    // Create an array to store bids with associated user info
+    const bidsWithUserInfo = [];
+
+    // Iterate over each bid to fetch user info
+    for (const bid of allBids) {
+      const user = await User.findOne({ email: bid.bidderEmail });
+
+      // If user info is found, add it to the bid data
+      if (user) {
+        bidsWithUserInfo.push({
+          ...bid.toObject(), // Convert Mongoose document to plain object
+          bidderName: user.name,
+          bidderProfilePic: user.profilePic
+        });
+      }
+    }
+
+    // Send response with the bids and corresponding user info
+    return res.send({ status: "ok", data: bidsWithUserInfo });
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
+
 
 app.get("/allTrips", async (req, res) => {
   try {
