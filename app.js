@@ -245,6 +245,33 @@ app.get("/showbids/:tripId", async (req, res) => {
   }
 });
 
+app.put('/updateBidStatus/:bidId', async (req, res) => {
+  try {
+    const { bidId } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!['accepted', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    // Update the bid status
+    const updatedBid = await Bid.findByIdAndUpdate(
+      bidId,
+      { status: status },
+      { new: true }
+    );
+
+    if (!updatedBid) {
+      return res.status(404).json({ message: 'Bid not found' });
+    }
+
+    res.status(200).json({ message: 'Bid status updated', data: updatedBid });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 app.get("/allTrips", async (req, res) => {
   try {
@@ -266,6 +293,7 @@ app.get("/allTrips", async (req, res) => {
           user: {
             username: user.name,
             profilePic: user.profilePic,
+            rating: user.rating,
           },
         });
       }

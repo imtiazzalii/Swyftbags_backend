@@ -23,6 +23,11 @@ const bidSchema = new mongoose.Schema(
       type: Date,
       default: Date.now(),
     },
+    status: {
+      type: String,
+      enum: ["accepted", "rejected", "pending"],
+      default: "pending",
+    },
   },
   {
     collection: "bids",

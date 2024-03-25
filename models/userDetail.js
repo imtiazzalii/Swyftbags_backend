@@ -10,7 +10,12 @@ const userDetailSchema = new mongoose.Schema({
     profilePic : String,
     frontCNIC : String,
     backCNIC : String,
-
+    rating: [{
+        type: Number,
+        min: 0.0,
+        max: 5.0,
+        default: 0.0
+    }]
 },
 {
     collection:"UserInfo"
