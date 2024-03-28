@@ -34,9 +34,11 @@ mongoose
 require("./models/userDetail");
 require("./models/tripDetails");
 require("./models/bids");
+require("./models/Notifications");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
 const Bid = mongoose.model("bids");
+const Notification = mongoose.model("Notification");
 
 app.get("/", (req, res) => {
   res.send({ status: "Started" });
@@ -108,7 +110,7 @@ app.post("/Login", async (req, res) => {
         .json({ status: "error", error: "Invalid password" });
     }
 
-    const token = jwt.sign({ email: user.email }, JWT_SECRET);
+    const token = jwt.sign({ _id: user._id, email: user.email }, JWT_SECRET);
 
     res.status(200).json({ status: "ok", data: token });
   } catch (error) {
@@ -291,6 +293,7 @@ app.get("/allTrips", async (req, res) => {
         tripDataWithUser.push({
           trip: trip,
           user: {
+             userId: user._id, // Include the user ID
             username: user.name,
             profilePic: user.profilePic,
             rating: user.rating,
@@ -344,6 +347,64 @@ app.post("/ChangePassword", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
+app.post("/createNotification", async (req, res) => {
+  const { userId, message, type } = req.body;
+
+  try {
+      const newNotification = new Notification({
+          userId,
+          message,
+          type
+      });
+
+      await newNotification.save();
+      res.status(201).json({ status: "ok", data: "Notification created" });
+  } catch (error) {
+      console.error("Error creating notification:", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+app.get("/notifications", async (req, res) => {
+  const token = req.headers.authorization;
+  console.log(token)
+
+  try {
+    if (!token) {
+      return res.status(401).json({ status: "error", error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log(decoded._id)
+    const userId = decoded._id; // Assuming the token contains the user's MongoDB ObjectID
+
+    const notifications = await Notification.find({ userId: userId });
+    res.status(200).json({ status: "ok", data: notifications });
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+
+app.patch("/notification/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+      const updatedNotification = await Notification.findByIdAndUpdate(
+          id,
+          { viewed: true },
+          { new: true }
+      );
+
+      res.status(200).json({ status: "ok", data: updatedNotification });
+  } catch (error) {
+      console.error("Error updating notification:", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 
 app.listen(process.env.PORT, () => {
   console.log("Node js server started");
