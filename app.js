@@ -172,15 +172,10 @@ app.post("/NewTrip", async (req, res) => {
   }
 });
 
-app.post("/bid", async (req,res) => {
-  const {
-    id,
-    bid,
-    capacity,
-    token
-  } = req.body;
+app.post("/bid", async (req, res) => {
+  const { id, bid, capacity, token } = req.body;
 
-  try{
+  try {
     const bidder = jwt.verify(token, JWT_SECRET);
     const bidderEmail = bidder.email;
 
@@ -192,8 +187,7 @@ app.post("/bid", async (req,res) => {
     });
 
     res.send({ status: "ok", data: "bid submitted" });
-
-  }catch(error) {
+  } catch (error) {
     console.error("Error submitting bid:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
@@ -233,7 +227,7 @@ app.get("/showbids/:tripId", async (req, res) => {
         bidsWithUserInfo.push({
           ...bid.toObject(), // Convert Mongoose document to plain object
           bidderName: user.name,
-          bidderProfilePic: user.profilePic
+          bidderProfilePic: user.profilePic,
         });
       }
     }
@@ -245,14 +239,14 @@ app.get("/showbids/:tripId", async (req, res) => {
   }
 });
 
-app.put('/updateBidStatus/:bidId', async (req, res) => {
+app.put("/updateBidStatus/:bidId", async (req, res) => {
   try {
     const { bidId } = req.params;
     const { status } = req.body;
 
     // Validate status
-    if (!['accepted', 'rejected', 'pending'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+    if (!["accepted", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
     }
 
     // Update the bid status
@@ -263,13 +257,13 @@ app.put('/updateBidStatus/:bidId', async (req, res) => {
     );
 
     if (!updatedBid) {
-      return res.status(404).json({ message: 'Bid not found' });
+      return res.status(404).json({ message: "Bid not found" });
     }
 
-    res.status(200).json({ message: 'Bid status updated', data: updatedBid });
+    res.status(200).json({ message: "Bid status updated", data: updatedBid });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 
@@ -303,6 +297,28 @@ app.get("/allTrips", async (req, res) => {
     return res.send({ status: "ok", data: tripDataWithUser });
   } catch (error) {
     return res.status(500).send({ error: error.message });
+  }
+});
+
+//endpoint to access all the friends of the logged in user!
+app.get("/accepted-friends/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    console.log(token);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findOne({ email: decoded.email }).populate(
+      "friends",
+      "name email profilePic"
+    );
+    console.log(user);
+    if (user) {
+      return res.send({ status: "ok", data: user.friends });
+    } else {
+      res.status(500).json({ error: "DB Error" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
