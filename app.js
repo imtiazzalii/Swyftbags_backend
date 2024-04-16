@@ -324,46 +324,38 @@ app.get("/accepted-friends/:token", async (req, res) => {
 });
 
 const multer = require("multer");
-
-// Configure multer for handling file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "files/"); // Specify the desired destination folder
-  },
-  filename: function (req, file, cb) {
-    // Generate a unique filename for the uploaded file
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + "-" + file.originalname);
-  },
-});
-
+const storage = multer.memoryStorage(); // Using memory storage for simplicity
 const upload = multer({ storage: storage });
 
 //endpoint to post Messages and store it in the backend
-app.post("/messages", upload.single("imageFile"), async (req, res) => {
+app.post("/messages", upload.none(), async (req, res) => {
   try {
-    const { senderToken, recepientId, messageType, messageText } = req.body;
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
 
-    const senderEmail = jwt.verify(senderToken, JWT_SECRET);
-    const sender = await User.findOne({ email: senderEmail.email }).select(
-      "_id"
-    );
-    const senderId = sender._id;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const sender = await User.findOne({ email: decoded.email }).select("_id");
+    if (!sender) {
+      return res.status(404).json({ error: "Sender not found" });
+    }
 
+    const { recepientId, messageType, messageText } = req.body;
     const newMessage = new Message({
-      senderId,
-      recepientId,
-      messageType,
+      senderId: sender._id,
+      recepientId: recepientId,
+      messageType: messageType,
       message: messageText,
       timeStamp: new Date(),
-      imageUrl: messageType === "image" ? req.file.path : null,
+      imageUrl: null, // Assuming no image is handled for now
     });
 
     await newMessage.save();
     res.status(200).json({ message: "Message sent Successfully" });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 });
 
