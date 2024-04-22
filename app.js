@@ -264,24 +264,32 @@ app.put('/updateBidStatus/:bidId', async (req, res) => {
 });
 
 app.get("/allTrips", async (req, res) => {
+  const { departureCity, arrivalCity, weight, cost, transportMode } = req.query;
+
   try {
-    // Fetch all trips
-    const allTrips = await Trip.find();
+    let conditions = {};
 
-    // Create an array to store trip data with associated user data
+    // Add string comparisons directly
+    if (departureCity && departureCity !== "") conditions['start'] = departureCity;
+    if (arrivalCity && arrivalCity !== "") conditions['destination'] = arrivalCity;
+    // Assuming you want to match exact strings or simple pattern (not numeric comparison)
+    if (weight && weight !== "") conditions['capacity'] = weight;
+    if (transportMode && transportMode !== "") conditions['tmode'] = transportMode;
+
+    console.log("Query conditions:", conditions);
+    
+
+    const allTrips = await Trip.find(conditions);
+    console.log("All trips:", allTrips);
+
     const tripDataWithUser = [];
-
-    // Iterate over each trip
     for (const trip of allTrips) {
-      // Find user details based on the email associated with the trip
       const user = await User.findOne({ email: trip.email });
-
-      // If user details are found, add trip and user data to the tripDataWithUser array
       if (user) {
         tripDataWithUser.push({
           trip: trip,
           user: {
-             userId: user._id, // Include the user ID
+            userId: user._id,
             username: user.name,
             profilePic: user.profilePic,
             rating: user.rating,
@@ -290,12 +298,14 @@ app.get("/allTrips", async (req, res) => {
       }
     }
 
-    // Send response with trip data and corresponding user data
     return res.send({ status: "ok", data: tripDataWithUser });
   } catch (error) {
+    console.error("Error in /allTrips:", error);
     return res.status(500).send({ error: error.message });
   }
 });
+
+
 
 // Change Password endpoint
 // Inside the "/ChangePassword" endpoint
