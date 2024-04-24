@@ -1,6 +1,10 @@
 const express = require("express");
+const http = require("http"); // Import http module to create http server
+const { Server } = require("socket.io"); // Import Server class from socket.io
 require("dotenv").config();
 const app = express();
+const server = http.createServer(app); // Wrap the express app with http server
+const io = new Server(server); // Create a new Socket.IO server and attach it to the http server
 const mongoose = require("mongoose");
 const cors = require("cors");
 const uploadImage = require("./components/UploadImage");
@@ -40,6 +44,43 @@ const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
 const Bid = mongoose.model("bids");
 const Message = mongoose.model("messages");
+
+// Socket.IO connection handler
+io.on("connection", (socket) => {
+  console.log("a user connected", socket.id);
+
+  socket.on("joinRoom",({ userId }) => {
+    
+    socket.join(userId);
+    console.log(`User with ID: ${userId} joined room`);
+  });
+
+  socket.on("sendMessage", async ({ token, recepientId, messageText }) => {
+    if (!token) {
+      return console.error("Token not provided");
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const sender = await User.findOne({ email: decoded.email }).select("_id");
+    const message = new Message({
+      senderId: sender,
+      recepientId: recepientId,
+      messageType: "text",
+      message: messageText,
+      imageUrl: null,
+      timeStamp: new Date(),
+    });
+
+    const savedMessage = await message.save();
+    console.log("Broadcasting message", savedMessage);
+    io.to(sender._id.toString()).emit("receiveMessage", savedMessage); // Ensure sender receives it too
+    io.to(recepientId.toString()).emit("receiveMessage", savedMessage);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("user disconnected");
+  });
+});
 
 app.get("/", (req, res) => {
   res.send({ status: "Started" });
@@ -113,7 +154,7 @@ app.post("/Login", async (req, res) => {
 
     const token = jwt.sign({ email: user.email }, JWT_SECRET);
 
-    res.status(200).json({ status: "ok", data: token });
+    res.status(200).json({ status: "ok", data: token, userId: user._id.toString() });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
@@ -328,6 +369,38 @@ const storage = multer.memoryStorage(); // Using memory storage for simplicity
 const upload = multer({ storage: storage });
 
 //endpoint to post Messages and store it in the backend
+// app.post("/messages", upload.none(), async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(" ")[1];
+//     if (!token) {
+//       return res.status(401).json({ error: "No token provided" });
+//     }
+
+//     const decoded = jwt.verify(token, JWT_SECRET);
+//     const sender = await User.findOne({ email: decoded.email }).select("_id");
+//     if (!sender) {
+//       return res.status(404).json({ error: "Sender not found" });
+//     }
+
+//     const { recepientId, messageType, messageText } = req.body;
+//     const newMessage = new Message({
+//       senderId: sender._id,
+//       recepientId: recepientId,
+//       messageType: messageType,
+//       message: messageText,
+//       timeStamp: new Date(),
+//       imageUrl: null, // Assuming no image is handled for now
+//     });
+
+//     await newMessage.save();
+//     res.status(200).json({ message: "Message sent Successfully" });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).json({ error: "Internal Server Error", details: error.message });
+//   }
+// });
+
+// Modify existing message route to emit messages via Socket.IO
 app.post("/messages", upload.none(), async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -352,10 +425,13 @@ app.post("/messages", upload.none(), async (req, res) => {
     });
 
     await newMessage.save();
+    io.to(recepientId).emit("message", newMessage); // Emit message to the recipient in real-time
     res.status(200).json({ message: "Message sent Successfully" });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Internal Server Error", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
   }
 });
 
@@ -434,6 +510,6 @@ app.post("/ChangePassword", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT, () => {
+server.listen(process.env.PORT, () => {
   console.log("Node js server started");
 });
