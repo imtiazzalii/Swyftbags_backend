@@ -7,6 +7,7 @@ const server = http.createServer(app); // Wrap the express app with http server
 const io = new Server(server); // Create a new Socket.IO server and attach it to the http server
 const mongoose = require("mongoose");
 const cors = require("cors");
+const axios = require('axios');
 const uploadImage = require("./components/UploadImage");
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
@@ -39,10 +40,12 @@ mongoose
 require("./models/userDetail");
 require("./models/tripDetails");
 require("./models/bids");
+require("./models/Notifications");
 require("./models/messages");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
 const Bid = mongoose.model("bids");
+const Notification = mongoose.model("Notification");
 const Message = mongoose.model("messages");
 
 // Socket.IO connection handler
@@ -87,26 +90,14 @@ app.get("/", (req, res) => {
 });
 
 app.post("/Signup", async (req, res) => {
-  const {
-    name,
-    email,
-    password,
-    confirmPassword,
-    cnic,
-    address,
-    phoneNumber,
-    profilePic,
-    frontCNIC,
-    backCNIC,
-  } = req.body;
+  const { name, email, password, cnic, address, phoneNumber, profilePic, frontCNIC, backCNIC, pushToken } = req.body;
 
-  const oldUser = await User.findOne({ email: email });
-
+  const oldUser = await User.findOne({ email });
   if (oldUser) {
-    return res.send({ data: "user already exist!!" });
+    return res.status(409).json({ message: "User already exists!" });
   }
-  encyptedPassword = await bcrypt.hash(password, 10);
 
+  const encryptedPassword = await bcrypt.hash(password, 10);
   try {
     const [ppUrl, fcUrl, bcUrl] = await Promise.all([
       uploadImage(profilePic),
@@ -114,46 +105,45 @@ app.post("/Signup", async (req, res) => {
       uploadImage(backCNIC),
     ]);
 
-    await User.create({
-      name: name,
-      email: email,
-      password: encyptedPassword,
-      //confirmPassword: confirmPassword,
-      cnic: cnic,
-      address: address,
-      phoneNumber: phoneNumber,
+    const newUser = await User.create({
+      name,
+      email,
+      password: encryptedPassword,
+      cnic,
+      address,
+      phoneNumber,
       profilePic: ppUrl,
       frontCNIC: fcUrl,
       backCNIC: bcUrl,
+      pushToken
     });
-    res.send({ status: "ok", data: "User created" });
+
+    res.status(201).json({ status: "ok", data: "User created successfully." });
   } catch (error) {
-    res.send({ status: "error", data: "error" });
+    res.status(500).json({ status: "error", data: error.message });
   }
 });
 
+
 app.post("/Login", async (req, res) => {
-  const { Email, Password } = req.body;
+  const { Email, Password, pushToken } = req.body;
 
   try {
     const user = await User.findOne({ email: Email });
-
     if (!user) {
-      return res
-        .status(400)
-        .json({ status: "error", error: "User does not exist" });
+      return res.status(404).json({ status: "error", error: "User does not exist" });
     }
 
     const isPasswordValid = await bcrypt.compare(Password, user.password);
-
     if (!isPasswordValid) {
-      return res
-        .status(400)
-        .json({ status: "error", error: "Invalid password" });
+      return res.status(401).json({ status: "error", error: "Invalid password" });
     }
 
-    const token = jwt.sign({ email: user.email }, JWT_SECRET);
+    // Update the push token every time user logs in
+    user.pushToken = pushToken;
+    await user.save();
 
+    const token = jwt.sign({ _id: user._id, email: user.email }, JWT_SECRET);
     res.status(200).json({ status: "ok", data: token, userId: user._id.toString() });
   } catch (error) {
     console.error("Login error:", error);
@@ -312,23 +302,32 @@ app.put("/updateBidStatus/:bidId", async (req, res) => {
 });
 
 app.get("/allTrips", async (req, res) => {
+  const { departureCity, arrivalCity, weight, cost, transportMode } = req.query;
+
   try {
-    // Fetch all trips
-    const allTrips = await Trip.find();
+    let conditions = {};
 
-    // Create an array to store trip data with associated user data
+    // Add string comparisons directly
+    if (departureCity && departureCity !== "") conditions['start'] = departureCity;
+    if (arrivalCity && arrivalCity !== "") conditions['destination'] = arrivalCity;
+    // Assuming you want to match exact strings or simple pattern (not numeric comparison)
+    if (weight && weight !== "") conditions['capacity'] = weight;
+    if (transportMode && transportMode !== "") conditions['tmode'] = transportMode;
+
+    console.log("Query conditions:", conditions);
+    
+
+    const allTrips = await Trip.find(conditions);
+    console.log("All trips:", allTrips);
+
     const tripDataWithUser = [];
-
-    // Iterate over each trip
     for (const trip of allTrips) {
-      // Find user details based on the email associated with the trip
       const user = await User.findOne({ email: trip.email });
-
-      // If user details are found, add trip and user data to the tripDataWithUser array
       if (user) {
         tripDataWithUser.push({
           trip: trip,
           user: {
+            userId: user._id,
             username: user.name,
             profilePic: user.profilePic,
             rating: user.rating,
@@ -337,9 +336,9 @@ app.get("/allTrips", async (req, res) => {
       }
     }
 
-    // Send response with trip data and corresponding user data
     return res.send({ status: "ok", data: tripDataWithUser });
   } catch (error) {
+    console.error("Error in /allTrips:", error);
     return res.status(500).send({ error: error.message });
   }
 });
@@ -509,6 +508,164 @@ app.post("/ChangePassword", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
+app.post("/createNotification", async (req, res) => {
+  const { userId, message, type } = req.body;
+
+  try {
+    // Create and save the notification in your database
+    const newNotification = new Notification({
+      userId,
+      message,
+      type
+    });
+
+    await newNotification.save();
+
+    // Find the user to get their push token
+    const user = await User.findById(userId);
+    if (user && user.pushToken) {
+      // Send a push notification if the user has a push token
+      const response = await axios.post('https://exp.host/--/api/v2/push/send', {
+        to: user.pushToken,
+        title: 'New Notification',
+        body: message,
+      }, {
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip, deflate',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('Push notification sent:', response.data);
+    }
+
+    res.status(201).json({ status: "ok", data: "Notification created and push sent successfully." });
+  } catch (error) {
+    console.error("Error creating notification or sending push:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+app.get("/notifications", async (req, res) => {
+  const token = req.headers.authorization;
+  console.log(token)
+
+  try {
+    if (!token) {
+      return res.status(401).json({ status: "error", error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log(decoded._id)
+    const userId = decoded._id; // Assuming the token contains the user's MongoDB ObjectID
+
+    const notifications = await Notification.find({ userId: userId });
+    res.status(200).json({ status: "ok", data: notifications });
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+
+app.patch("/notification/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+      const updatedNotification = await Notification.findByIdAndUpdate(
+          id,
+          { viewed: true },
+          { new: true }
+      );
+
+      res.status(200).json({ status: "ok", data: updatedNotification });
+  } catch (error) {
+      console.error("Error updating notification:", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+
+app.post("/createNotification", async (req, res) => {
+  const { userId, message, type } = req.body;
+
+  try {
+    // Create and save the notification in your database
+    const newNotification = new Notification({
+      userId,
+      message,
+      type
+    });
+
+    await newNotification.save();
+
+    // Find the user to get their push token
+    const user = await User.findById(userId);
+    if (user && user.pushToken) {
+      // Send a push notification if the user has a push token
+      const response = await axios.post('https://exp.host/--/api/v2/push/send', {
+        to: user.pushToken,
+        title: 'New Notification',
+        body: message,
+      }, {
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip, deflate',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('Push notification sent:', response.data);
+    }
+
+    res.status(201).json({ status: "ok", data: "Notification created and push sent successfully." });
+  } catch (error) {
+    console.error("Error creating notification or sending push:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+app.get("/notifications", async (req, res) => {
+  const token = req.headers.authorization;
+  console.log(token)
+
+  try {
+    if (!token) {
+      return res.status(401).json({ status: "error", error: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log(decoded._id)
+    const userId = decoded._id; // Assuming the token contains the user's MongoDB ObjectID
+
+    const notifications = await Notification.find({ userId: userId });
+    res.status(200).json({ status: "ok", data: notifications });
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+
+app.patch("/notification/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+      const updatedNotification = await Notification.findByIdAndUpdate(
+          id,
+          { viewed: true },
+          { new: true }
+      );
+
+      res.status(200).json({ status: "ok", data: updatedNotification });
+  } catch (error) {
+      console.error("Error updating notification:", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 
 server.listen(process.env.PORT, () => {
   console.log("Node js server started");
