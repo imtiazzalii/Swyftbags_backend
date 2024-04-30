@@ -159,6 +159,24 @@ app.post("/Login", async (req, res) => {
   }
 });
 
+
+app.post("/logout", async (req, res) => {
+  const { userId } = req.body;
+  try {
+      const user = await User.findById(userId);
+      if (user) {
+          user.pushToken = ""; // Clear the push token
+          await user.save();
+          res.status(200).json({ status: "ok", message: "Logged out successfully" });
+      } else {
+          res.status(404).json({ status: "error", error: "User not found" });
+      }
+  } catch (error) {
+      console.error("Logout Error:", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 app.post("/adminLogin", async (req, res) => {
   const { email, password} = req.body;
   console.log(req.body)
@@ -182,7 +200,6 @@ app.post("/adminLogin", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
-
 app.get("/userData/:userId", (req, res) => {
   //const { token } = req.body;
   const token = req.params.userId;
@@ -619,7 +636,6 @@ app.patch("/notification/:id", async (req, res) => {
   }
 });
 
-
 app.post("/createNotification", async (req, res) => {
   const { userId, message, type } = req.body;
 
@@ -636,10 +652,17 @@ app.post("/createNotification", async (req, res) => {
     // Find the user to get their push token
     const user = await User.findById(userId);
     if (user && user.pushToken) {
+      let title = 'New Notification';
+      if (type === 'bid') {
+        title = 'New Bid';
+      } else if (type === 'chat') {
+        title = 'New Message';
+      }
+
       // Send a push notification if the user has a push token
       const response = await axios.post('https://exp.host/--/api/v2/push/send', {
         to: user.pushToken,
-        title: 'New Notification',
+        title: title,
         body: message,
       }, {
         headers: {
@@ -658,6 +681,7 @@ app.post("/createNotification", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
 
 app.get("/notifications", async (req, res) => {
   const token = req.headers.authorization;
