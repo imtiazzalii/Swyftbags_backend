@@ -24,6 +24,11 @@ const userDetailSchema = new mongoose.Schema({
         ref: "UserInfo",
       },
     ],
+    status: {
+      type: String,
+      enum: [ "pending", "approved", "rejected"],
+      default: "pending",
+    },
 },
 {
     collection:"UserInfo"

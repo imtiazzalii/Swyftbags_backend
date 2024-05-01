@@ -25,11 +25,6 @@ const UploadImage = require("./components/UploadImage");
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-// app.use(function (req, res) {
-//     res.setHeader('Content-Type', 'text/plain')
-//     res.write('you posted:\n')
-//     // res.end(JSON.stringify(req.body, null, 2))
-//   })
 
 const mongoUrl = process.env.MONGODB_URL;
 
@@ -123,7 +118,8 @@ app.post("/Signup", async (req, res) => {
       profilePic: ppUrl,
       frontCNIC: fcUrl,
       backCNIC: bcUrl,
-      pushToken
+      pushToken,
+      status: "pending" // Ensure the user status is set to pending by default
     });
 
     res.status(201).json({ status: "ok", data: "User created successfully." });
@@ -142,6 +138,10 @@ app.post("/Login", async (req, res) => {
       return res.status(404).json({ status: "error", error: "User does not exist" });
     }
 
+    if (user.status === "pending") {
+      return res.status(401).json({ status: "error", error: "Account not approved" });
+    }
+
     const isPasswordValid = await bcrypt.compare(Password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ status: "error", error: "Invalid password" });
@@ -156,6 +156,37 @@ app.post("/Login", async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+app.get("/admin/pending-users", async (req, res) => {
+  try {
+      const fieldExclusions = "-password -pushToken -rating -friends"; // Specify fields to exclude
+      const pendingUsers = await User.find({ status: "pending" }).select(fieldExclusions); // Use select to exclude fields
+      res.status(200).json({ status: "ok", data: pendingUsers });
+  } catch (error) {
+      console.error("Error fetching pending users:", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+app.post("/admin/update-status", async (req, res) => {
+  const { userId, status } = req.body;
+
+  // Ensure the status is either 'approved' or 'rejected'
+  if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ status: "error", error: "Invalid status provided" });
+  }
+
+  try {
+      const updatedUser = await User.findByIdAndUpdate(userId, { status: status }, { new: true });
+      if (!updatedUser) {
+          return res.status(404).json({ status: "error", error: "User not found" });
+      }
+      res.status(200).json({ status: "ok", data: updatedUser });
+  } catch (error) {
+      console.error("Failed to update user status", error);
+      res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
@@ -200,6 +231,7 @@ app.post("/adminLogin", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
 app.get("/userData/:userId", (req, res) => {
   //const { token } = req.body;
   const token = req.params.userId;
@@ -416,39 +448,6 @@ const multer = require("multer");
 const storage = multer.memoryStorage(); // Using memory storage for simplicity
 const upload = multer({ storage: storage });
 
-//endpoint to post Messages and store it in the backend
-// app.post("/messages", upload.none(), async (req, res) => {
-//   try {
-//     const token = req.headers.authorization?.split(" ")[1];
-//     if (!token) {
-//       return res.status(401).json({ error: "No token provided" });
-//     }
-
-//     const decoded = jwt.verify(token, JWT_SECRET);
-//     const sender = await User.findOne({ email: decoded.email }).select("_id");
-//     if (!sender) {
-//       return res.status(404).json({ error: "Sender not found" });
-//     }
-
-//     const { recepientId, messageType, messageText } = req.body;
-//     const newMessage = new Message({
-//       senderId: sender._id,
-//       recepientId: recepientId,
-//       messageType: messageType,
-//       message: messageText,
-//       timeStamp: new Date(),
-//       imageUrl: null, // Assuming no image is handled for now
-//     });
-
-//     await newMessage.save();
-//     res.status(200).json({ message: "Message sent Successfully" });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).json({ error: "Internal Server Error", details: error.message });
-//   }
-// });
-
-// Modify existing message route to emit messages via Socket.IO
 app.post("/messages", upload.none(), async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];

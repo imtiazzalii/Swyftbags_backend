@@ -13,6 +13,11 @@ const tripDetailSchema = new mongoose.Schema({
     description: String,
     email: String,
     tmode: String,
+    status: {
+      type: String,
+      enum: [ "pending", "accepted", "reached inspector 1", "reached inspector 2", "completed"],
+      default: "pending",
+    },
 
 },
 {
