@@ -43,12 +43,13 @@ require("./models/tripDetails");
 require("./models/bids");
 require("./models/Notifications");
 require("./models/messages");
+require("./models/wallet");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
 const Bid = mongoose.model("bids");
 const Notification = mongoose.model("Notification");
 const Message = mongoose.model("messages");
-
+const Wallet = mongoose.model("wallet");
 // Socket.IO connection handler
 io.on("connection", (socket) => {
   console.log("a user connected", socket.id);
@@ -718,6 +719,93 @@ app.patch("/notification/:id", async (req, res) => {
   }
 });
 
+app.post('/wallet/create', async (req, res) => {
+  const { userId } = req.body;
+  
+  try {
+    let wallet = await Wallet.findOne({ userId });
+    if (!wallet) {
+      // Create a new wallet with zero balance and no transactions
+      wallet = new Wallet({
+        userId: userId,
+        balance: 0,
+        transactions: []
+      });
+      await wallet.save();
+      res.status(201).json({ message: "Wallet created successfully", wallet });
+    } else {
+      res.status(200).json({ message: "Wallet already exists", wallet });
+    }
+  } catch (error) {
+    console.error("Error in creating wallet:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+app.post('/wallet/transaction', async (req, res) => {
+  const { userId, amount, type } = req.body;
+  
+  try {
+    let wallet = await Wallet.findOne({ userId });
+    if (wallet) {
+      wallet.balance += amount;
+      wallet.transactions.push({
+        type: type,
+        amount: amount,
+        date: new Date()
+      });
+      await wallet.save();
+      res.status(200).json({ message: "Transaction processed successfully", wallet });
+    } else {
+      res.status(404).json({ message: "Wallet not found" });
+    }
+  } catch (error) {
+    console.error("Error processing transaction:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+app.get('/wallet/details/:userId', async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    const wallet = await Wallet.findOne({ userId });
+    if (wallet) {
+      res.status(200).json({ message: "Wallet details fetched successfully", data: wallet });
+    } else {
+      res.status(404).json({ message: "Wallet not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching wallet details:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post('/chargeWallet', async (req, res) => {
+  try {
+    const { bidderId, bidAmount, capacity } = req.body;
+
+    // Calculate the total amount to charge from the bidder's wallet including the fee
+    const totalAmount = (bidAmount * capacity) + (0.05 * bidAmount * capacity);
+
+    // Check if the bidder has sufficient funds in their wallet
+    const bidderWallet = await Wallet.findOne({ userId: bidderId });
+    if (!bidderWallet || bidderWallet.balance < totalAmount) {
+      return res.status(400).json({ message: 'Insufficient funds in wallet' });
+    }
+
+    // Deduct the total amount from the bidder's wallet balance
+    bidderWallet.balance -= totalAmount;
+    await bidderWallet.save();
+
+    return res.status(200).json({ message: 'Bidder wallet charged successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 server.listen(process.env.PORT, () => {
   console.log("Node js server started");
