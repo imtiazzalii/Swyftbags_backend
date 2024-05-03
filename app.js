@@ -190,6 +190,92 @@ app.post("/admin/update-status", async (req, res) => {
   }
 });
 
+app.get("/inspector/trips", async (req, res) => {
+  const { status, start } = req.query;
+  
+  try {
+    let matchQuery = {
+      'status': 'accepted', // Default to accepted if no specific status is provided
+      ...(status && {status}),
+      ...(start && {start})
+    };
+
+    const tripsWithBids = await Trip.aggregate([
+      { $match: matchQuery },
+      {
+        $lookup: {
+          from: "bids",
+          let: { trip_id: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ["$tripId", "$$trip_id"] }, { $eq: ["$status", "accepted"] }] } } }
+          ],
+          as: "successfulBid"
+        }
+      },
+      { $match: { "successfulBid.0": { $exists: true } } }, // Ensure there is at least one successful bid
+      { $addFields: { bidderEmail: { $arrayElemAt: ["$successfulBid.bidderEmail", 0] } } },
+      { $project: { successfulBid: 0 } } // Optionally remove the successfulBid array from output
+    ]);
+
+    res.status(200).json(tripsWithBids);
+  } catch (error) {
+    console.error("Error fetching trips:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/inspector/tripsdest", async (req, res) => {
+  const { status, destination } = req.query;
+  
+  try {
+    let matchQuery = {
+      'status': 'accepted', // Default to accepted if no specific status is provided
+      ...(status && {status}),
+      ...(destination && {destination})
+    };
+
+    const tripsWithBids = await Trip.aggregate([
+      { $match: matchQuery },
+      {
+        $lookup: {
+          from: "bids",
+          let: { trip_id: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ["$tripId", "$$trip_id"] }, { $eq: ["$status", "accepted"] }] } } }
+          ],
+          as: "successfulBid"
+        }
+      },
+      { $match: { "successfulBid.0": { $exists: true } } }, // Ensure there is at least one successful bid
+      { $addFields: { bidderEmail: { $arrayElemAt: ["$successfulBid.bidderEmail", 0] } } },
+      { $project: { successfulBid: 0 } } // Optionally remove the successfulBid array from output
+    ]);
+
+    res.status(200).json(tripsWithBids);
+  } catch (error) {
+    console.error("Error fetching trips:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.put("/inspector/trips/:tripId", async (req, res) => {
+  const { tripId } = req.params;
+  const { status } = req.body;
+
+  try {
+    // Update the status of the trip with the provided tripId
+    const updatedTrip = await Trip.findByIdAndUpdate(
+      tripId,
+      { status },
+      { new: true }
+    );
+
+    res.status(200).json(updatedTrip);
+  } catch (error) {
+    console.error("Error updating trip status:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 app.post("/logout", async (req, res) => {
   const { userId } = req.body;
@@ -210,7 +296,6 @@ app.post("/logout", async (req, res) => {
 
 app.post("/adminLogin", async (req, res) => {
   const { email, password} = req.body;
-  console.log(req.body)
 
   try {
     const admin = await Admin.findOne({ email: email });  
@@ -225,7 +310,7 @@ app.post("/adminLogin", async (req, res) => {
 
     const token = jwt.sign({ _id: admin._id, email: admin.email }, JWT_SECRET);
     res.cookie('token', token, {httpOnly: true, secure: true});
-    res.status(200).json({ status: "ok", data: token, adminId: admin._id.toString() });
+    res.status(200).json({ status: "ok", data: token, adminCity: admin.address });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
@@ -278,6 +363,7 @@ app.post("/NewTrip", async (req, res) => {
       description: description,
       email: email,
       tmode: tmode,
+      status: "pending",
     });
 
     res.send({ status: "ok", data: "Trip created" });

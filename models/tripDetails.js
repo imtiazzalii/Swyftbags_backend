@@ -15,7 +15,7 @@ const tripDetailSchema = new mongoose.Schema({
     tmode: String,
     status: {
       type: String,
-      enum: [ "pending", "accepted", "reached inspector 1", "reached inspector 2", "completed"],
+      enum: [ "pending", "accepted", "reached inspector 1", "dispatched", "reached inspector 2", "completed"],
       default: "pending",
     },
 
