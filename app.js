@@ -16,6 +16,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 var bodyParser = require("body-parser");
 const UploadImage = require("./components/UploadImage");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -130,6 +131,7 @@ app.post("/Login", async (req, res) => {
 
   try {
     const user = await User.findOne({ email: Email });
+    console.log(user)
     if (!user) {
       return res.status(404).json({ status: "error", error: "User does not exist" });
     }
@@ -150,6 +152,46 @@ app.post("/Login", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
+// app.get("/getBidderIdByEmail/:bidderEmail", async (req, res) => {
+//   const { bidderEmail } = req.params;
+
+//   try {
+//     console.log("BIDDER KI ID: ",bidderEmail)
+//     // Fetch bidderId based on bidderEmail
+//     const user = await User.findOne({ email: bidderEmail });
+   
+//     if (user) {
+//       res.status(200).json({ bidderId: user._id });
+//     } else {
+//       res.status(404).json({ message: "User not found" });
+//     }
+//   } catch (error) {
+//     console.error("Error fetching bidderId:", error);
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// });
+
+
+// app.js (Node.js backend)
+
+app.post('/initiate-payment', async (req, res) => {
+  const { amount } = req.body;
+  try {
+      console.log("Creating payment intent with amount:", amount); // Log the amount to verify it's correct
+      const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',  // Ensure 'pkr' is a supported currency in Stripe
+          automatic_payment_methods: { enabled: true },
+      });
+      console.log("Payment Intent created:", paymentIntent.id);  // Log the Payment Intent ID
+      res.status(200).json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+      console.error("Error creating payment intent:", error);  // Log the full error
+      res.status(500).json({ error: error.message });
+  }
+});
+
 
 app.post("/logout", async (req, res) => {
   const { userId } = req.body;
@@ -182,6 +224,21 @@ app.get("/userData/:userId", (req, res) => {
     });
   } catch (error) {
     return res.send({ error: error });
+  }
+});
+
+app.get("/walletData/:userId", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const user = await User.findById(userId); // Directly find by userId
+    if (!user) {
+      return res.status(404).send({ status: "error", error: "User not found" });
+    }
+    return res.send({ status: "ok", data: user });
+  } catch (error) {
+    console.error("Error retrieving user data:", error);
+    return res.status(500).send({ error: "Internal server error" });
   }
 });
 
@@ -279,6 +336,7 @@ app.get("/showbids/:tripId", async (req, res) => {
         bidsWithUserInfo.push({
           ...bid.toObject(), // Convert Mongoose document to plain object
           bidderName: user.name,
+          bidderId: user._id,
           bidderProfilePic: user.profilePic,
         });
       }
@@ -527,45 +585,6 @@ app.post("/ChangePassword", async (req, res) => {
   }
 });
 
-app.post("/createNotification", async (req, res) => {
-  const { userId, message, type } = req.body;
-
-  try {
-    // Create and save the notification in your database
-    const newNotification = new Notification({
-      userId,
-      message,
-      type
-    });
-
-    await newNotification.save();
-
-    // Find the user to get their push token
-    const user = await User.findById(userId);
-    if (user && user.pushToken) {
-      // Send a push notification if the user has a push token
-      const response = await axios.post('https://exp.host/--/api/v2/push/send', {
-        to: user.pushToken,
-        title: 'New Notification',
-        body: message,
-      }, {
-        headers: {
-          'Accept': 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Push notification sent:', response.data);
-    }
-
-    res.status(201).json({ status: "ok", data: "Notification created and push sent successfully." });
-  } catch (error) {
-    console.error("Error creating notification or sending push:", error);
-    res.status(500).json({ status: "error", error: "Internal server error" });
-  }
-});
-
 app.get("/notifications", async (req, res) => {
   const token = req.headers.authorization;
   console.log(token)
@@ -609,29 +628,36 @@ app.post("/createNotification", async (req, res) => {
   const { userId, message, type } = req.body;
 
   try {
-    // Create and save the notification in your database
     const newNotification = new Notification({
       userId,
       message,
       type
     });
+    console.log(newNotification)
 
     await newNotification.save();
 
-    // Find the user to get their push token
     const user = await User.findById(userId);
     if (user && user.pushToken) {
-      let title = 'New Notification';
-      if (type === 'bid') {
-        title = 'New Bid';
-      } else if (type === 'chat') {
-        title = 'New Message';
+      let title = 'New Notification'; // Default title
+      switch(type) {
+        case 'bid':
+          title = 'New Bid';
+          break;
+        case 'chat':
+          title = 'New Message';
+          break;
+        case 'Accept':
+          title = 'Bid Accepted';
+          break;
+        case 'Reject':
+          title = 'Bid Rejected';
+          break;
       }
 
-      // Send a push notification if the user has a push token
       const response = await axios.post('https://exp.host/--/api/v2/push/send', {
         to: user.pushToken,
-        title: title,
+        title,
         body: message,
       }, {
         headers: {
@@ -650,6 +676,7 @@ app.post("/createNotification", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
 
 
 app.get("/notifications", async (req, res) => {
