@@ -22,6 +22,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 var bodyParser = require("body-parser");
 const UploadImage = require("./components/UploadImage");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -43,6 +44,7 @@ require("./models/tripDetails");
 require("./models/bids");
 require("./models/Notifications");
 require("./models/messages");
+require("./models/wallet");
 require("./models/adminDetail");
 const User = mongoose.model("UserInfo");
 const Trip = mongoose.model("tripInfo");
@@ -50,6 +52,7 @@ const Bid = mongoose.model("bids");
 const Notification = mongoose.model("Notification");
 const Message = mongoose.model("messages");
 const Admin = mongoose.model("AdminInfo");
+const Wallet = mongoose.model("wallet");
 
 // Socket.IO connection handler
 io.on("connection", (socket) => {
@@ -134,6 +137,7 @@ app.post("/Login", async (req, res) => {
 
   try {
     const user = await User.findOne({ email: Email });
+    console.log(user)
     if (!user) {
       return res.status(404).json({ status: "error", error: "User does not exist" });
     }
@@ -156,6 +160,45 @@ app.post("/Login", async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
+// app.get("/getBidderIdByEmail/:bidderEmail", async (req, res) => {
+//   const { bidderEmail } = req.params;
+
+//   try {
+//     console.log("BIDDER KI ID: ",bidderEmail)
+//     // Fetch bidderId based on bidderEmail
+//     const user = await User.findOne({ email: bidderEmail });
+   
+//     if (user) {
+//       res.status(200).json({ bidderId: user._id });
+//     } else {
+//       res.status(404).json({ message: "User not found" });
+//     }
+//   } catch (error) {
+//     console.error("Error fetching bidderId:", error);
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// });
+
+
+// app.js (Node.js backend)
+
+app.post('/initiate-payment', async (req, res) => {
+  const { amount } = req.body;
+  try {
+      console.log("Creating payment intent with amount:", amount); // Log the amount to verify it's correct
+      const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',  // Ensure 'pkr' is a supported currency in Stripe
+          automatic_payment_methods: { enabled: true },
+      });
+      console.log("Payment Intent created:", paymentIntent.id);  // Log the Payment Intent ID
+      res.status(200).json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+      console.error("Error creating payment intent:", error);  // Log the full error
+      res.status(500).json({ error: error.message });
   }
 });
 
@@ -333,6 +376,21 @@ app.get("/userData/:userId", (req, res) => {
   }
 });
 
+app.get("/walletData/:userId", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const user = await User.findById(userId); // Directly find by userId
+    if (!user) {
+      return res.status(404).send({ status: "error", error: "User not found" });
+    }
+    return res.send({ status: "ok", data: user });
+  } catch (error) {
+    console.error("Error retrieving user data:", error);
+    return res.status(500).send({ error: "Internal server error" });
+  }
+});
+
 app.post("/NewTrip", async (req, res) => {
   const {
     start,
@@ -428,6 +486,7 @@ app.get("/showbids/:tripId", async (req, res) => {
         bidsWithUserInfo.push({
           ...bid.toObject(), // Convert Mongoose document to plain object
           bidderName: user.name,
+          bidderId: user._id,
           bidderProfilePic: user.profilePic,
         });
       }
@@ -643,45 +702,6 @@ app.post("/ChangePassword", async (req, res) => {
   }
 });
 
-app.post("/createNotification", async (req, res) => {
-  const { userId, message, type } = req.body;
-
-  try {
-    // Create and save the notification in your database
-    const newNotification = new Notification({
-      userId,
-      message,
-      type
-    });
-
-    await newNotification.save();
-
-    // Find the user to get their push token
-    const user = await User.findById(userId);
-    if (user && user.pushToken) {
-      // Send a push notification if the user has a push token
-      const response = await axios.post('https://exp.host/--/api/v2/push/send', {
-        to: user.pushToken,
-        title: 'New Notification',
-        body: message,
-      }, {
-        headers: {
-          'Accept': 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Push notification sent:', response.data);
-    }
-
-    res.status(201).json({ status: "ok", data: "Notification created and push sent successfully." });
-  } catch (error) {
-    console.error("Error creating notification or sending push:", error);
-    res.status(500).json({ status: "error", error: "Internal server error" });
-  }
-});
-
 app.get("/notifications", async (req, res) => {
   const token = req.headers.authorization;
   console.log(token)
@@ -725,29 +745,36 @@ app.post("/createNotification", async (req, res) => {
   const { userId, message, type } = req.body;
 
   try {
-    // Create and save the notification in your database
     const newNotification = new Notification({
       userId,
       message,
       type
     });
+    console.log(newNotification)
 
     await newNotification.save();
 
-    // Find the user to get their push token
     const user = await User.findById(userId);
     if (user && user.pushToken) {
-      let title = 'New Notification';
-      if (type === 'bid') {
-        title = 'New Bid';
-      } else if (type === 'chat') {
-        title = 'New Message';
+      let title = 'New Notification'; // Default title
+      switch(type) {
+        case 'bid':
+          title = 'New Bid';
+          break;
+        case 'chat':
+          title = 'New Message';
+          break;
+        case 'Accept':
+          title = 'Bid Accepted';
+          break;
+        case 'Reject':
+          title = 'Bid Rejected';
+          break;
       }
 
-      // Send a push notification if the user has a push token
       const response = await axios.post('https://exp.host/--/api/v2/push/send', {
         to: user.pushToken,
-        title: title,
+        title,
         body: message,
       }, {
         headers: {
@@ -766,6 +793,7 @@ app.post("/createNotification", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
 
 
 app.get("/notifications", async (req, res) => {
@@ -807,6 +835,93 @@ app.patch("/notification/:id", async (req, res) => {
   }
 });
 
+app.post('/wallet/create', async (req, res) => {
+  const { userId } = req.body;
+  
+  try {
+    let wallet = await Wallet.findOne({ userId });
+    if (!wallet) {
+      // Create a new wallet with zero balance and no transactions
+      wallet = new Wallet({
+        userId: userId,
+        balance: 0,
+        transactions: []
+      });
+      await wallet.save();
+      res.status(201).json({ message: "Wallet created successfully", wallet });
+    } else {
+      res.status(200).json({ message: "Wallet already exists", wallet });
+    }
+  } catch (error) {
+    console.error("Error in creating wallet:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+app.post('/wallet/transaction', async (req, res) => {
+  const { userId, amount, type } = req.body;
+  
+  try {
+    let wallet = await Wallet.findOne({ userId });
+    if (wallet) {
+      wallet.balance += amount;
+      wallet.transactions.push({
+        type: type,
+        amount: amount,
+        date: new Date()
+      });
+      await wallet.save();
+      res.status(200).json({ message: "Transaction processed successfully", wallet });
+    } else {
+      res.status(404).json({ message: "Wallet not found" });
+    }
+  } catch (error) {
+    console.error("Error processing transaction:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+app.get('/wallet/details/:userId', async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    const wallet = await Wallet.findOne({ userId });
+    if (wallet) {
+      res.status(200).json({ message: "Wallet details fetched successfully", data: wallet });
+    } else {
+      res.status(404).json({ message: "Wallet not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching wallet details:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post('/chargeWallet', async (req, res) => {
+  try {
+    const { bidderId, bidAmount, capacity } = req.body;
+
+    // Calculate the total amount to charge from the bidder's wallet including the fee
+    const totalAmount = (bidAmount * capacity) + (0.05 * bidAmount * capacity);
+
+    // Check if the bidder has sufficient funds in their wallet
+    const bidderWallet = await Wallet.findOne({ userId: bidderId });
+    if (!bidderWallet || bidderWallet.balance < totalAmount) {
+      return res.status(400).json({ message: 'Insufficient funds in wallet' });
+    }
+
+    // Deduct the total amount from the bidder's wallet balance
+    bidderWallet.balance -= totalAmount;
+    await bidderWallet.save();
+
+    return res.status(200).json({ message: 'Bidder wallet charged successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 server.listen(process.env.PORT, () => {
   console.log("Node js server started");
