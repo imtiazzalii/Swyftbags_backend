@@ -901,10 +901,10 @@ app.get('/wallet/details/:userId', async (req, res) => {
 
 app.post('/chargeWallet', async (req, res) => {
   try {
-    const { bidderId, bidAmount, capacity } = req.body;
+    const { bidderId, bidAmount } = req.body;
 
-    // Calculate the total amount to charge from the bidder's wallet including the fee
-    const totalAmount = (bidAmount * capacity) + (0.05 * bidAmount * capacity);
+  // Calculate the total amount to charge from the bidder's wallet including the fee
+    const totalAmount = (bidAmount) + (0.05 * bidAmount);
 
     // Check if the bidder has sufficient funds in their wallet
     const bidderWallet = await Wallet.findOne({ userId: bidderId });
@@ -917,6 +917,37 @@ app.post('/chargeWallet', async (req, res) => {
     await bidderWallet.save();
 
     return res.status(200).json({ message: 'Bidder wallet charged successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+app.post('/makeFriend', async (req, res) => {
+  const { bidderId, userId } = req.body;
+
+  try {
+    // Check if both users exist
+    const usersExist = await User.countDocuments({
+      '_id': { $in: [bidderId, userId] }
+    });
+
+    if (usersExist !== 2) {
+      return res.status(404).json({ message: 'One or both users not found' });
+    }
+
+    // Update both users' friends list
+    await User.updateOne(
+      { _id: userId },
+      { $addToSet: { friends: bidderId } }
+    );
+    
+    await User.updateOne(
+      { _id: bidderId },
+      { $addToSet: { friends: userId } }
+    );
+
+    return res.status(200).json({ message: 'Friendship created successfully' });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal server error' });
