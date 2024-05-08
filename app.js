@@ -19,6 +19,8 @@ app.use(cookieParser());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ limit: "25mb" }));
 const bcrypt = require("bcrypt");
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const jwt = require("jsonwebtoken");
 var bodyParser = require("body-parser");
 const UploadImage = require("./components/UploadImage");
@@ -952,6 +954,53 @@ app.post('/makeFriend', async (req, res) => {
     console.error(error);
     return res.status(500).json({ message: 'Internal server error' });
   }
+});
+
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  host:"smtp.gmail.com",
+  port:587,
+  secure:false,
+  auth: {
+    user: 'imtiaz.mushfiq01@gmail.com',
+    pass: 'flqgbkqjopawzvej'
+  }
+});
+
+// Forgot password endpoint
+app.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email: email });
+  if (!user) {
+    return res.status(404).json({ status: "error", error: "User not found" });
+  }
+
+  // Generate a temporary password
+  const temporaryPassword = crypto.randomBytes(8).toString('hex');
+  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+  // Update user's password in the database
+  user.password = hashedPassword;
+  await user.save();
+
+  // Send email with the temporary password
+  const mailOptions = {
+    from: 'imtiaz.mushfiq01@gmail.com',
+    to: email,
+    subject: 'Temporary Password',
+    text: `Your temporary password is: ${temporaryPassword}\nPlease log in with this password and change it immediately.`
+  };
+
+  transporter.sendMail(mailOptions, function(err, info) {
+    if (err) {
+      console.error('Email sending error:', err);
+      return res.status(500).json({ status: "error", error: "Failed to send email" });
+    } else {
+      console.log('Email sent: ' + info.response);
+      res.status(200).json({ status: "ok", message: "Temporary password sent to your email." });
+    }
+  });
 });
 
 server.listen(process.env.PORT, () => {
