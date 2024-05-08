@@ -18,6 +18,9 @@ const tripDetailSchema = new mongoose.Schema({
       enum: [ "pending", "accepted", "reached inspector 1", "dispatched", "reached inspector 2", "completed"],
       default: "pending",
     },
+    recvName: String,
+    recvNumber: String,
+    recvCnic: String,
 
 },
 {

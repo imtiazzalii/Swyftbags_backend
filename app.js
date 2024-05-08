@@ -434,17 +434,22 @@ app.post("/NewTrip", async (req, res) => {
 });
 
 app.post("/bid", async (req, res) => {
-  const { id, bid, capacity, token } = req.body;
+  const { id, bid, capacity, token, recvName, recvNumber, recvCnic} = req.body;
 
   try {
     const bidder = jwt.verify(token, JWT_SECRET);
     const bidderEmail = bidder.email;
+
+    console.log("Bidder email:", bidder.email);  // Log the extracted email
 
     await Bid.create({
       bidderEmail: bidderEmail,
       tripId: id,
       bid: bid,
       capacity: capacity,
+      recvName: recvName,
+      recvNumber:recvNumber,
+      recvCnic:recvCnic,
     });
 
     res.send({ status: "ok", data: "bid submitted" });
@@ -453,6 +458,22 @@ app.post("/bid", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
+app.get("/getBidById/:bidId", async (req, res) => {
+  const { bidId } = req.params;
+
+  try {
+    const bid = await Bid.findById(bidId);
+    if (!bid) {
+      return res.status(404).json({ status: "error", error: "Bid not found" });
+    }
+    res.status(200).json({ status: "ok", data: bid });
+  } catch (error) {
+    console.error("Error fetching bid:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 
 app.get("/tripData/:userId", async (req, res) => {
   const token = req.params.userId;
@@ -468,6 +489,29 @@ app.get("/tripData/:userId", async (req, res) => {
     return res.send({ error: error });
   }
 });
+
+app.put("/updateTripDetails/:tripId", async (req, res) => {
+  const { tripId } = req.params;
+  const { recvName, recvNumber, recvCnic } = req.body;
+
+  console.log(req.body)
+
+  try {
+    const updatedTrip = await Trip.findByIdAndUpdate(
+      tripId,
+      { recvName, recvNumber, recvCnic },
+      { new: true }
+    );
+    if (!updatedTrip) {
+      return res.status(404).json({ status: "error", error: "Trip not found" });
+    }
+    res.status(200).json({ status: "ok", data: updatedTrip });
+  } catch (error) {
+    console.error("Error updating trip details:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 
 app.get("/showbids/:tripId", async (req, res) => {
   try {
@@ -964,7 +1008,7 @@ const transporter = nodemailer.createTransport({
   secure:false,
   auth: {
     user: 'imtiaz.mushfiq01@gmail.com',
-    pass: 'flqgbkqjopawzvej'
+    // pass: 'ur passcode'
   }
 });
 

@@ -28,6 +28,18 @@ const bidSchema = new mongoose.Schema(
       enum: ["accepted", "rejected", "pending"],
       default: "pending",
     },
+    recvName: {
+      type: String,
+      required: false,  // Set to false initially; can be true if required
+    },
+    recvNumber: {
+      type: String,
+      required: false,
+    },
+    recvCnic: {
+      type: String,
+      required: false,
+    },
   },
   {
     collection: "bids",
