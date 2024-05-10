@@ -646,7 +646,7 @@ app.get("/allTrips", async (req, res) => {
     if (arrivalCity && arrivalCity !== "")
       conditions["destination"] = arrivalCity;
     // Assuming you want to match exact strings or simple pattern (not numeric comparison)
-    if (weight && weight !== "") conditions["capacity"] = weight;
+    if (weight && weight !== "") conditions["capacity"] >= weight;
     if (transportMode && transportMode !== "")
       conditions["tmode"] = transportMode;
 
@@ -1185,6 +1185,56 @@ app.post("/chargeWallet", async (req, res) => {
   }
 });
 
+app.post("/wallet/deposit", async (req, res) => {
+  const { email, amount } = req.body;
+
+  try {
+    // Find the user by email
+    const user = await User.findOne({ email: email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Find the user's wallet by userId
+    let wallet = await Wallet.findOne({ userId: user._id });
+    // Update the wallet balance and add a transaction record
+    console.log("amount: ",amount)
+    wallet.balance += amount;
+    wallet.transactions.push({
+      type: "deposit",
+      amount: amount,
+      date: new Date(),
+    });
+
+    await wallet.save();
+
+    res.status(200).json({ message: "Amount deposited successfully", wallet });
+  } catch (error) {
+    console.error("Error depositing amount:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Add this endpoint in your app.js
+
+app.get("/bids/accepted", async (req, res) => {
+  const { tripId, recvName } = req.query;
+
+  try {
+    // Find the bid with the specified tripId, recvName, and status "accepted"
+    const bid = await Bid.findOne({ tripId: tripId, recvName: recvName, status: "accepted" });
+    if (!bid) {
+      return res.status(404).json({ error: "Accepted bid not found for this trip with the specified receiver name" });
+    }
+
+    res.status(200).json({ bid: bid.bid });
+  } catch (error) {
+    console.error("Error fetching accepted bid:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 app.post("/makeFriend", async (req, res) => {
   const { bidderId, userId } = req.body;
 
@@ -1211,16 +1261,46 @@ app.post("/makeFriend", async (req, res) => {
 });
 
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host:"smtp.gmail.com",
-  port:587,
-  secure:false,
-  auth: {
-    user: 'imtiaz.mushfiq01@gmail.com',
-    // pass: 'ur passcode'
+app.post("/friends/remove", async (req, res) => {
+  const { senderEmail, travellerEmail } = req.body;
+
+  try {
+    // Find sender and traveller by their emails
+    const sender = await User.findOne({ email: senderEmail });
+    const traveller = await User.findOne({ email: travellerEmail });
+
+    if (!sender || !traveller) {
+      return res.status(404).json({ error: "One or both users not found" });
+    }
+
+    // Remove each other from friends array
+    await User.updateOne(
+      { _id: sender._id },
+      { $pull: { friends: traveller._id } }
+    );
+
+    await User.updateOne(
+      { _id: traveller._id },
+      { $pull: { friends: sender._id } }
+    );
+
+    res.status(200).json({ message: "Users removed from each other's friends list successfully" });
+  } catch (error) {
+    console.error("Error removing users from friends list:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// const transporter = nodemailer.createTransport({
+//   service: 'gmail',
+//   host:"smtp.gmail.com",
+//   port:587,
+//   secure:false,
+//   auth: {
+//     user: 'imtiaz.mushfiq01@gmail.com',
+//     // pass: 'ur passcode'
+//   }
+// });
 
 // Forgot password endpoint
 app.post('/forgot-password', async (req, res) => {
