@@ -594,6 +594,7 @@ app.get("/showbids/:tripId", async (req, res) => {
           bidderName: user.name,
           bidderId: user._id,
           bidderProfilePic: user.profilePic,
+          rating: user.rating,
         });
       }
     }
