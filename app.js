@@ -7,13 +7,15 @@ const server = http.createServer(app); // Wrap the express app with http server
 const io = new Server(server); // Create a new Socket.IO server and attach it to the http server
 const mongoose = require("mongoose");
 const cors = require("cors");
-const axios = require('axios');
+const axios = require("axios");
 const cookieParser = require("cookie-parser");
 const uploadImage = require("./components/UploadImage");
-app.use(cors({
-  origin: ['http://localhost:5173'],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 //app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: "25mb" }));
@@ -24,7 +26,7 @@ const nodemailer = require('nodemailer');
 const jwt = require("jsonwebtoken");
 var bodyParser = require("body-parser");
 const UploadImage = require("./components/UploadImage");
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -60,8 +62,7 @@ const Wallet = mongoose.model("wallet");
 io.on("connection", (socket) => {
   console.log("a user connected", socket.id);
 
-  socket.on("joinRoom",({ userId }) => {
-    
+  socket.on("joinRoom", ({ userId }) => {
     socket.join(userId);
     console.log(`User with ID: ${userId} joined room`);
   });
@@ -98,7 +99,18 @@ app.get("/", (req, res) => {
 });
 
 app.post("/Signup", async (req, res) => {
-  const { name, email, password, cnic, address, phoneNumber, profilePic, frontCNIC, backCNIC, pushToken } = req.body;
+  const {
+    name,
+    email,
+    password,
+    cnic,
+    address,
+    phoneNumber,
+    profilePic,
+    frontCNIC,
+    backCNIC,
+    pushToken,
+  } = req.body;
 
   const oldUser = await User.findOne({ email });
   if (oldUser) {
@@ -124,7 +136,7 @@ app.post("/Signup", async (req, res) => {
       frontCNIC: fcUrl,
       backCNIC: bcUrl,
       pushToken,
-      status: "pending" // Ensure the user status is set to pending by default
+      status: "pending", // Ensure the user status is set to pending by default
     });
 
     res.status(201).json({ status: "ok", data: "User created successfully." });
@@ -133,24 +145,29 @@ app.post("/Signup", async (req, res) => {
   }
 });
 
-
 app.post("/Login", async (req, res) => {
   const { Email, Password, pushToken } = req.body;
 
   try {
     const user = await User.findOne({ email: Email });
-    console.log(user)
+    console.log(user);
     if (!user) {
-      return res.status(404).json({ status: "error", error: "User does not exist" });
+      return res
+        .status(404)
+        .json({ status: "error", error: "User does not exist" });
     }
 
     if (user.status === "pending") {
-      return res.status(401).json({ status: "error", error: "Account not approved" });
+      return res
+        .status(401)
+        .json({ status: "error", error: "Account not approved" });
     }
 
     const isPasswordValid = await bcrypt.compare(Password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ status: "error", error: "Invalid password" });
+      return res
+        .status(401)
+        .json({ status: "error", error: "Invalid password" });
     }
 
     // Update the push token every time user logs in
@@ -158,7 +175,9 @@ app.post("/Login", async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ _id: user._id, email: user.email }, JWT_SECRET);
-    res.status(200).json({ status: "ok", data: token, userId: user._id.toString() });
+    res
+      .status(200)
+      .json({ status: "ok", data: token, userId: user._id.toString() });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
@@ -172,7 +191,7 @@ app.post("/Login", async (req, res) => {
 //     console.log("BIDDER KI ID: ",bidderEmail)
 //     // Fetch bidderId based on bidderEmail
 //     const user = await User.findOne({ email: bidderEmail });
-   
+
 //     if (user) {
 //       res.status(200).json({ bidderId: user._id });
 //     } else {
@@ -184,34 +203,35 @@ app.post("/Login", async (req, res) => {
 //   }
 // });
 
-
 // app.js (Node.js backend)
 
-app.post('/initiate-payment', async (req, res) => {
+app.post("/initiate-payment", async (req, res) => {
   const { amount } = req.body;
   try {
-      console.log("Creating payment intent with amount:", amount); // Log the amount to verify it's correct
-      const paymentIntent = await stripe.paymentIntents.create({
-          amount: amount,
-          currency: 'usd',  // Ensure 'pkr' is a supported currency in Stripe
-          automatic_payment_methods: { enabled: true },
-      });
-      console.log("Payment Intent created:", paymentIntent.id);  // Log the Payment Intent ID
-      res.status(200).json({ clientSecret: paymentIntent.client_secret });
+    console.log("Creating payment intent with amount:", amount); // Log the amount to verify it's correct
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: "usd", // Ensure 'pkr' is a supported currency in Stripe
+      automatic_payment_methods: { enabled: true },
+    });
+    console.log("Payment Intent created:", paymentIntent.id); // Log the Payment Intent ID
+    res.status(200).json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
-      console.error("Error creating payment intent:", error);  // Log the full error
-      res.status(500).json({ error: error.message });
+    console.error("Error creating payment intent:", error); // Log the full error
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.get("/admin/pending-users", async (req, res) => {
   try {
-      const fieldExclusions = "-password -pushToken -rating -friends"; // Specify fields to exclude
-      const pendingUsers = await User.find({ status: "pending" }).select(fieldExclusions); // Use select to exclude fields
-      res.status(200).json({ status: "ok", data: pendingUsers });
+    const fieldExclusions = "-password -pushToken -rating -friends"; // Specify fields to exclude
+    const pendingUsers = await User.find({ status: "pending" }).select(
+      fieldExclusions
+    ); // Use select to exclude fields
+    res.status(200).json({ status: "ok", data: pendingUsers });
   } catch (error) {
-      console.error("Error fetching pending users:", error);
-      res.status(500).json({ status: "error", error: "Internal server error" });
+    console.error("Error fetching pending users:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
@@ -219,30 +239,36 @@ app.post("/admin/update-status", async (req, res) => {
   const { userId, status } = req.body;
 
   // Ensure the status is either 'approved' or 'rejected'
-  if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ status: "error", error: "Invalid status provided" });
+  if (!["approved", "rejected"].includes(status)) {
+    return res
+      .status(400)
+      .json({ status: "error", error: "Invalid status provided" });
   }
 
   try {
-      const updatedUser = await User.findByIdAndUpdate(userId, { status: status }, { new: true });
-      if (!updatedUser) {
-          return res.status(404).json({ status: "error", error: "User not found" });
-      }
-      res.status(200).json({ status: "ok", data: updatedUser });
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { status: status },
+      { new: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).json({ status: "error", error: "User not found" });
+    }
+    res.status(200).json({ status: "ok", data: updatedUser });
   } catch (error) {
-      console.error("Failed to update user status", error);
-      res.status(500).json({ status: "error", error: "Internal server error" });
+    console.error("Failed to update user status", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
 app.get("/inspector/trips", async (req, res) => {
   const { status, start } = req.query;
-  
+
   try {
     let matchQuery = {
-      'status': 'accepted', // Default to accepted if no specific status is provided
-      ...(status && {status}),
-      ...(start && {start})
+      status: "accepted", // Default to accepted if no specific status is provided
+      ...(status && { status }),
+      ...(start && { start }),
     };
 
     const tripsWithBids = await Trip.aggregate([
@@ -252,14 +278,27 @@ app.get("/inspector/trips", async (req, res) => {
           from: "bids",
           let: { trip_id: "$_id" },
           pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$tripId", "$$trip_id"] }, { $eq: ["$status", "accepted"] }] } } }
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$tripId", "$$trip_id"] },
+                    { $eq: ["$status", "accepted"] },
+                  ],
+                },
+              },
+            },
           ],
-          as: "successfulBid"
-        }
+          as: "successfulBid",
+        },
       },
       { $match: { "successfulBid.0": { $exists: true } } }, // Ensure there is at least one successful bid
-      { $addFields: { bidderEmail: { $arrayElemAt: ["$successfulBid.bidderEmail", 0] } } },
-      { $project: { successfulBid: 0 } } // Optionally remove the successfulBid array from output
+      {
+        $addFields: {
+          bidderEmail: { $arrayElemAt: ["$successfulBid.bidderEmail", 0] },
+        },
+      },
+      { $project: { successfulBid: 0 } }, // Optionally remove the successfulBid array from output
     ]);
 
     res.status(200).json(tripsWithBids);
@@ -271,12 +310,12 @@ app.get("/inspector/trips", async (req, res) => {
 
 app.get("/inspector/tripsdest", async (req, res) => {
   const { status, destination } = req.query;
-  
+
   try {
     let matchQuery = {
-      'status': 'accepted', // Default to accepted if no specific status is provided
-      ...(status && {status}),
-      ...(destination && {destination})
+      status: "accepted", // Default to accepted if no specific status is provided
+      ...(status && { status }),
+      ...(destination && { destination }),
     };
 
     const tripsWithBids = await Trip.aggregate([
@@ -286,14 +325,27 @@ app.get("/inspector/tripsdest", async (req, res) => {
           from: "bids",
           let: { trip_id: "$_id" },
           pipeline: [
-            { $match: { $expr: { $and: [{ $eq: ["$tripId", "$$trip_id"] }, { $eq: ["$status", "accepted"] }] } } }
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$tripId", "$$trip_id"] },
+                    { $eq: ["$status", "accepted"] },
+                  ],
+                },
+              },
+            },
           ],
-          as: "successfulBid"
-        }
+          as: "successfulBid",
+        },
       },
       { $match: { "successfulBid.0": { $exists: true } } }, // Ensure there is at least one successful bid
-      { $addFields: { bidderEmail: { $arrayElemAt: ["$successfulBid.bidderEmail", 0] } } },
-      { $project: { successfulBid: 0 } } // Optionally remove the successfulBid array from output
+      {
+        $addFields: {
+          bidderEmail: { $arrayElemAt: ["$successfulBid.bidderEmail", 0] },
+        },
+      },
+      { $project: { successfulBid: 0 } }, // Optionally remove the successfulBid array from output
     ]);
 
     res.status(200).json(tripsWithBids);
@@ -325,37 +377,45 @@ app.put("/inspector/trips/:tripId", async (req, res) => {
 app.post("/logout", async (req, res) => {
   const { userId } = req.body;
   try {
-      const user = await User.findById(userId);
-      if (user) {
-          user.pushToken = ""; // Clear the push token
-          await user.save();
-          res.status(200).json({ status: "ok", message: "Logged out successfully" });
-      } else {
-          res.status(404).json({ status: "error", error: "User not found" });
-      }
+    const user = await User.findById(userId);
+    if (user) {
+      user.pushToken = ""; // Clear the push token
+      await user.save();
+      res
+        .status(200)
+        .json({ status: "ok", message: "Logged out successfully" });
+    } else {
+      res.status(404).json({ status: "error", error: "User not found" });
+    }
   } catch (error) {
-      console.error("Logout Error:", error);
-      res.status(500).json({ status: "error", error: "Internal server error" });
+    console.error("Logout Error:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
 app.post("/adminLogin", async (req, res) => {
-  const { email, password} = req.body;
+  const { email, password } = req.body;
 
   try {
-    const admin = await Admin.findOne({ email: email });  
+    const admin = await Admin.findOne({ email: email });
     if (!admin) {
-      return res.status(404).json({ status: "error", error: "Admin does not exist" });
+      return res
+        .status(404)
+        .json({ status: "error", error: "Admin does not exist" });
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ status: "error", error: "Invalid password" });
+      return res
+        .status(401)
+        .json({ status: "error", error: "Invalid password" });
     }
 
     const token = jwt.sign({ _id: admin._id, email: admin.email }, JWT_SECRET);
-    res.cookie('token', token, {httpOnly: true, secure: true});
-    res.status(200).json({ status: "ok", data: token, adminCity: admin.address });
+    res.cookie("token", token, { httpOnly: true, secure: true });
+    res
+      .status(200)
+      .json({ status: "ok", data: token, adminCity: admin.address });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
@@ -580,14 +640,16 @@ app.get("/allTrips", async (req, res) => {
     let conditions = {};
 
     // Add string comparisons directly
-    if (departureCity && departureCity !== "") conditions['start'] = departureCity;
-    if (arrivalCity && arrivalCity !== "") conditions['destination'] = arrivalCity;
+    if (departureCity && departureCity !== "")
+      conditions["start"] = departureCity;
+    if (arrivalCity && arrivalCity !== "")
+      conditions["destination"] = arrivalCity;
     // Assuming you want to match exact strings or simple pattern (not numeric comparison)
-    if (weight && weight !== "") conditions['capacity'] = weight;
-    if (transportMode && transportMode !== "") conditions['tmode'] = transportMode;
+    if (weight && weight !== "") conditions["capacity"] = weight;
+    if (transportMode && transportMode !== "")
+      conditions["tmode"] = transportMode;
 
     console.log("Query conditions:", conditions);
-    
 
     const allTrips = await Trip.find(conditions);
     console.log("All trips:", allTrips);
@@ -612,6 +674,146 @@ app.get("/allTrips", async (req, res) => {
   } catch (error) {
     console.error("Error in /allTrips:", error);
     return res.status(500).send({ error: error.message });
+  }
+});
+
+app.get("/myOrders/:userId", async (req, res) => {
+  try {
+    // Fetch the user's email using the userId
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const email = user.email;
+
+    // Find bids with the user's email where the status is 'accepted'
+    const bids = await Bid.find({
+      bidderEmail: email,
+      status: "accepted",
+    }).populate({
+      path: "tripId",
+      match: { status: { $nin: ["pending"] } },
+    });
+
+    // Filter out any null populated trips
+    const trips = bids.map((bid) => bid.tripId).filter((trip) => trip != null);
+
+    const tripDataWithUser = [];
+    for (const trip of trips) {
+      const user1 = await User.findOne({ email: trip.email });
+      if (user1) {
+        tripDataWithUser.push({
+          trip: trip,
+          user: {
+            userId: user1._id,
+            username: user1.name,
+            profilePic: user1.profilePic,
+            rating: user1.rating,
+          },
+        });
+      }
+    }
+
+    console.log("trips: ", tripDataWithUser);
+    res.json({ success: true, data: tripDataWithUser });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get("/Trips/:userId", async (req, res) => {
+  try {
+    // Fetch the user's email using the userId
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const email1 = user.email;
+
+    const trips = await Trip.find({
+      email: email1,
+      status: { $ne: "pending" },
+    });
+    
+    const tripDataWithUser = [];
+    for (const trip of trips) {
+      const user1 = await User.findOne({ email: trip.email });
+      if (user1) {
+        tripDataWithUser.push({
+          trip: trip,
+          user: {
+            userId: user1._id,
+            username: user1.name,
+            profilePic: user1.profilePic,
+            rating: user1.rating,
+          },
+        });
+      }
+    }
+
+    console.log("trips: ", tripDataWithUser);
+    res.json({ success: true, data: tripDataWithUser });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put("/updateTripStatus/:tripId", async (req, res) => {
+  const { tripId } = req.params;
+  const { status } = req.body;
+
+  try {
+    const trip = await Trip.findByIdAndUpdate(
+      tripId,
+      { status: status },
+      { new: true }
+    );
+    if (!trip) {
+      return res.status(404).send("Trip not found");
+    }
+    res.send({ data: trip, message: "Trip status updated successfully" });
+  } catch (error) {
+    res.status(500).send("Error updating trip status: " + error);
+  }
+});
+
+// Get trip details by trip ID
+app.get('/tripDetails/:id', async (req, res) => {
+  try {
+      const trip = await Trip.findById(req.params.id);
+      if (!trip) {
+          return res.status(404).json({ message: 'Trip not found' });
+      }
+      res.status(200).json(trip);
+  } catch (error) {
+      console.error("Database access error:", error);
+      res.status(500).json({ message: 'Error retrieving trip details', error: error.message });
+  }
+});
+
+// Endpoint to get sender's name by trip ID
+app.get('/senderName/:tripId', async (req, res) => {
+  try {
+      const bid = await Bid.findOne({ tripId: req.params.tripId, status: 'accepted' }).exec();
+      if (!bid) {
+          return res.status(404).json({ message: 'No accepted bid found for this trip' });
+      }
+
+      const user = await User.findOne({ email: bid.bidderEmail }).exec();
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.status(200).json({ name: user.name });
+  } catch (error) {
+      console.error("Error fetching sender's name:", error);
+      res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -750,15 +952,17 @@ app.post("/ChangePassword", async (req, res) => {
 
 app.get("/notifications", async (req, res) => {
   const token = req.headers.authorization;
-  console.log(token)
+  console.log(token);
 
   try {
     if (!token) {
-      return res.status(401).json({ status: "error", error: "No token provided" });
+      return res
+        .status(401)
+        .json({ status: "error", error: "No token provided" });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log(decoded._id)
+    console.log(decoded._id);
     const userId = decoded._id; // Assuming the token contains the user's MongoDB ObjectID
 
     const notifications = await Notification.find({ userId: userId });
@@ -769,21 +973,20 @@ app.get("/notifications", async (req, res) => {
   }
 });
 
-
 app.patch("/notification/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-      const updatedNotification = await Notification.findByIdAndUpdate(
-          id,
-          { viewed: true },
-          { new: true }
-      );
+    const updatedNotification = await Notification.findByIdAndUpdate(
+      id,
+      { viewed: true },
+      { new: true }
+    );
 
-      res.status(200).json({ status: "ok", data: updatedNotification });
+    res.status(200).json({ status: "ok", data: updatedNotification });
   } catch (error) {
-      console.error("Error updating notification:", error);
-      res.status(500).json({ status: "error", error: "Internal server error" });
+    console.error("Error updating notification:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
@@ -794,65 +997,74 @@ app.post("/createNotification", async (req, res) => {
     const newNotification = new Notification({
       userId,
       message,
-      type
+      type,
     });
-    console.log(newNotification)
+    console.log(newNotification);
 
     await newNotification.save();
 
     const user = await User.findById(userId);
     if (user && user.pushToken) {
-      let title = 'New Notification'; // Default title
-      switch(type) {
-        case 'bid':
-          title = 'New Bid';
+      let title = "New Notification"; // Default title
+      switch (type) {
+        case "bid":
+          title = "New Bid";
           break;
-        case 'chat':
-          title = 'New Message';
+        case "chat":
+          title = "New Message";
           break;
-        case 'Accept':
-          title = 'Bid Accepted';
+        case "Accept":
+          title = "Bid Accepted";
           break;
-        case 'Reject':
-          title = 'Bid Rejected';
+        case "Reject":
+          title = "Bid Rejected";
           break;
       }
 
-      const response = await axios.post('https://exp.host/--/api/v2/push/send', {
-        to: user.pushToken,
-        title,
-        body: message,
-      }, {
-        headers: {
-          'Accept': 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json'
+      const response = await axios.post(
+        "https://exp.host/--/api/v2/push/send",
+        {
+          to: user.pushToken,
+          title,
+          body: message,
+        },
+        {
+          headers: {
+            Accept: "application/json",
+            "Accept-Encoding": "gzip, deflate",
+            "Content-Type": "application/json",
+          },
         }
-      });
+      );
 
-      console.log('Push notification sent:', response.data);
+      console.log("Push notification sent:", response.data);
     }
 
-    res.status(201).json({ status: "ok", data: "Notification created and push sent successfully." });
+    res
+      .status(201)
+      .json({
+        status: "ok",
+        data: "Notification created and push sent successfully.",
+      });
   } catch (error) {
     console.error("Error creating notification or sending push:", error);
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
-
-
 app.get("/notifications", async (req, res) => {
   const token = req.headers.authorization;
-  console.log(token)
+  console.log(token);
 
   try {
     if (!token) {
-      return res.status(401).json({ status: "error", error: "No token provided" });
+      return res
+        .status(401)
+        .json({ status: "error", error: "No token provided" });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log(decoded._id)
+    console.log(decoded._id);
     const userId = decoded._id; // Assuming the token contains the user's MongoDB ObjectID
 
     const notifications = await Notification.find({ userId: userId });
@@ -863,27 +1075,26 @@ app.get("/notifications", async (req, res) => {
   }
 });
 
-
 app.patch("/notification/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-      const updatedNotification = await Notification.findByIdAndUpdate(
-          id,
-          { viewed: true },
-          { new: true }
-      );
+    const updatedNotification = await Notification.findByIdAndUpdate(
+      id,
+      { viewed: true },
+      { new: true }
+    );
 
-      res.status(200).json({ status: "ok", data: updatedNotification });
+    res.status(200).json({ status: "ok", data: updatedNotification });
   } catch (error) {
-      console.error("Error updating notification:", error);
-      res.status(500).json({ status: "error", error: "Internal server error" });
+    console.error("Error updating notification:", error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
 
-app.post('/wallet/create', async (req, res) => {
+app.post("/wallet/create", async (req, res) => {
   const { userId } = req.body;
-  
+
   try {
     let wallet = await Wallet.findOne({ userId });
     if (!wallet) {
@@ -891,7 +1102,7 @@ app.post('/wallet/create', async (req, res) => {
       wallet = new Wallet({
         userId: userId,
         balance: 0,
-        transactions: []
+        transactions: [],
       });
       await wallet.save();
       res.status(201).json({ message: "Wallet created successfully", wallet });
@@ -904,10 +1115,9 @@ app.post('/wallet/create', async (req, res) => {
   }
 });
 
-
-app.post('/wallet/transaction', async (req, res) => {
+app.post("/wallet/transaction", async (req, res) => {
   const { userId, amount, type } = req.body;
-  
+
   try {
     let wallet = await Wallet.findOne({ userId });
     if (wallet) {
@@ -915,10 +1125,12 @@ app.post('/wallet/transaction', async (req, res) => {
       wallet.transactions.push({
         type: type,
         amount: amount,
-        date: new Date()
+        date: new Date(),
       });
       await wallet.save();
-      res.status(200).json({ message: "Transaction processed successfully", wallet });
+      res
+        .status(200)
+        .json({ message: "Transaction processed successfully", wallet });
     } else {
       res.status(404).json({ message: "Wallet not found" });
     }
@@ -928,14 +1140,15 @@ app.post('/wallet/transaction', async (req, res) => {
   }
 });
 
-
-app.get('/wallet/details/:userId', async (req, res) => {
+app.get("/wallet/details/:userId", async (req, res) => {
   const { userId } = req.params;
-  
+
   try {
     const wallet = await Wallet.findOne({ userId });
     if (wallet) {
-      res.status(200).json({ message: "Wallet details fetched successfully", data: wallet });
+      res
+        .status(200)
+        .json({ message: "Wallet details fetched successfully", data: wallet });
     } else {
       res.status(404).json({ message: "Wallet not found" });
     }
@@ -945,58 +1158,54 @@ app.get('/wallet/details/:userId', async (req, res) => {
   }
 });
 
-app.post('/chargeWallet', async (req, res) => {
+app.post("/chargeWallet", async (req, res) => {
   try {
     const { bidderId, bidAmount } = req.body;
 
-  // Calculate the total amount to charge from the bidder's wallet including the fee
-    const totalAmount = (bidAmount) + (0.05 * bidAmount);
+    // Calculate the total amount to charge from the bidder's wallet including the fee
+    const totalAmount = bidAmount + 0.05 * bidAmount;
 
     // Check if the bidder has sufficient funds in their wallet
     const bidderWallet = await Wallet.findOne({ userId: bidderId });
     if (!bidderWallet || bidderWallet.balance < totalAmount) {
-      return res.status(400).json({ message: 'Insufficient funds in wallet' });
+      return res.status(400).json({ message: "Insufficient funds in wallet" });
     }
 
     // Deduct the total amount from the bidder's wallet balance
     bidderWallet.balance -= totalAmount;
     await bidderWallet.save();
 
-    return res.status(200).json({ message: 'Bidder wallet charged successfully' });
+    return res
+      .status(200)
+      .json({ message: "Bidder wallet charged successfully" });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
-app.post('/makeFriend', async (req, res) => {
+app.post("/makeFriend", async (req, res) => {
   const { bidderId, userId } = req.body;
 
   try {
     // Check if both users exist
     const usersExist = await User.countDocuments({
-      '_id': { $in: [bidderId, userId] }
+      _id: { $in: [bidderId, userId] },
     });
 
     if (usersExist !== 2) {
-      return res.status(404).json({ message: 'One or both users not found' });
+      return res.status(404).json({ message: "One or both users not found" });
     }
 
     // Update both users' friends list
-    await User.updateOne(
-      { _id: userId },
-      { $addToSet: { friends: bidderId } }
-    );
-    
-    await User.updateOne(
-      { _id: bidderId },
-      { $addToSet: { friends: userId } }
-    );
+    await User.updateOne({ _id: userId }, { $addToSet: { friends: bidderId } });
 
-    return res.status(200).json({ message: 'Friendship created successfully' });
+    await User.updateOne({ _id: bidderId }, { $addToSet: { friends: userId } });
+
+    return res.status(200).json({ message: "Friendship created successfully" });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
