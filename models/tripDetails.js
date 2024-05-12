@@ -8,7 +8,6 @@ const tripDetailSchema = new mongoose.Schema({
     enddate: String,
     endtime: String,
     startbid:String,
-    buyout: String,
     capacity: String,
     description: String,
     email: String,
