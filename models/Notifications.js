@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
     message: String,
     type: {
         type: String,
-        enum: ['bid', 'chat', 'Accept','Reject'], // You can add more types as needed
+        enum: ['bid', 'chat', 'Accept','Reject','Trip'], // You can add more types as needed
         default: 'other'
     },
     viewed: { 

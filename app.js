@@ -95,7 +95,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send({ status: "Started" });
+  res.send({ status: "Started backend" });
 });
 
 app.post("/Signup", async (req, res) => {
@@ -462,7 +462,6 @@ app.post("/NewTrip", async (req, res) => {
     enddate,
     endtime,
     startbid,
-    buyout,
     capacity,
     description,
     email,
@@ -478,7 +477,6 @@ app.post("/NewTrip", async (req, res) => {
       enddate: enddate,
       endtime: endtime,
       startbid: startbid,
-      buyout: buyout,
       capacity: capacity,
       description: description,
       email: email,
@@ -571,6 +569,21 @@ app.put("/updateTripDetails/:tripId", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
+app.delete('/trip/:tripId', async (req, res) => {
+  const { tripId } = req.params;
+  try {
+    const deletedTrip = await Trip.findByIdAndDelete(tripId);
+    if (!deletedTrip) {
+      return res.status(404).json({ status: 'error', message: 'Trip not found' });
+    }
+    res.status(200).json({ status: 'ok', message: 'Trip deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting trip:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 
 
 app.get("/showbids/:tripId", async (req, res) => {
@@ -1291,18 +1304,18 @@ app.post("/friends/remove", async (req, res) => {
   }
 });
 
-// const transporter = nodemailer.createTransport({
-//   service: 'gmail',
-//   host:"smtp.gmail.com",
-//   port:587,
-//   secure:false,
-//   auth: {
-//     user: 'imtiaz.mushfiq01@gmail.com',
-//     // pass: 'ur passcode'
-//   }
-// });
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  host:"smtp.gmail.com",
+  port:587,
+  secure:false,
+  auth: {
+    user: 'swyftbags03@gmail.com',
+    pass: process.env.EMAIL_PASS,
+  }
+});
 
-// Forgot password endpoint
+
 app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email: email });
@@ -1320,7 +1333,7 @@ app.post('/forgot-password', async (req, res) => {
 
   // Send email with the temporary password
   const mailOptions = {
-    from: 'imtiaz.mushfiq01@gmail.com',
+    from: 'swyftbags03@gmail.com',
     to: email,
     subject: 'Temporary Password',
     text: `Your temporary password is: ${temporaryPassword}\nPlease log in with this password and change it immediately.`
@@ -1336,6 +1349,34 @@ app.post('/forgot-password', async (req, res) => {
     }
   });
 });
+
+// Email Notification API
+app.post('/sendEmailNotification', async (req, res) => {
+  const { email, subject, message } = req.body;
+
+  try {
+    const mailOptions = {
+      from: 'swyftbags03@gmail.com',
+      to: email,
+      subject: subject,
+      text: message
+    };
+
+    transporter.sendMail(mailOptions, function(err, info) {
+      if (err) {
+        console.error('Email sending error:', err);
+        return res.status(500).json({ status: "error", error: "Failed to send email" });
+      } else {
+        console.log('Email sent: ' + info.response);
+        res.status(200).json({ status: "ok", message: "Email sent successfully." });
+      }
+    });
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+    res.status(500).json({ status: "error", error: "Internal server error" });
+  }
+});
+
 
 server.listen(process.env.PORT, () => {
   console.log("Node js server started");
