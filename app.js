@@ -95,7 +95,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send({ status: "Started" });
+  res.send({ status: "Started backend" });
 });
 
 app.post("/Signup", async (req, res) => {
@@ -569,6 +569,21 @@ app.put("/updateTripDetails/:tripId", async (req, res) => {
     res.status(500).json({ status: "error", error: "Internal server error" });
   }
 });
+
+app.delete('/trip/:tripId', async (req, res) => {
+  const { tripId } = req.params;
+  try {
+    const deletedTrip = await Trip.findByIdAndDelete(tripId);
+    if (!deletedTrip) {
+      return res.status(404).json({ status: 'error', message: 'Trip not found' });
+    }
+    res.status(200).json({ status: 'ok', message: 'Trip deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting trip:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 
 
 app.get("/showbids/:tripId", async (req, res) => {
