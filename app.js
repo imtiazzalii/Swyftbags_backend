@@ -11,10 +11,7 @@ const axios = require("axios");
 const cookieParser = require("cookie-parser");
 const uploadImage = require("./components/UploadImage");
 app.use(
-  cors({
-    origin: ["http://localhost:5173"],
-    credentials: true,
-  })
+  cors()
 );
 //app.use(cors());
 app.use(cookieParser());
