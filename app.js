@@ -537,11 +537,87 @@ app.get("/tripData/:userId", async (req, res) => {
     const trip = jwt.verify(token, JWT_SECRET);
     const tripemail = trip.email;
 
-    Trip.find({ email: tripemail }).then((data) => {
+    Trip.find({ email: tripemail, status: "pending" }).then((data) => {
       return res.send({ status: "ok", data: data });
     });
   } catch (error) {
     return res.send({ error: error });
+  }
+});
+
+app.get('/myOrders/trips/:tripId', async (req, res) => {
+  try {
+    const trip = await Trip.findById(req.params.tripId);
+    if (!trip) {
+      return res.status(404).send('Trip not found');
+    }
+    res.send(trip);
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
+app.delete('/myOrders/trips/:tripId', async (req, res) => {
+  try {
+    const trip = await Trip.findById(req.params.tripId);
+    if (!trip) {
+      return res.status(404).send('Trip not found');
+    }
+    if (trip.status !== 'accepted') {
+      return res.status(403).send('This trip cannot be deleted');
+    }
+    await Trip.findByIdAndDelete(req.params.tripId);
+    res.send({ message: 'Trip deleted successfully' });
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
+});
+
+app.post('/refund', async (req, res) => {
+  const { senderEmail, tripId } = req.body;
+
+  try {
+    // Find the user by email to get the userId
+    const user = await UserInfo.findOne({ email: senderEmail });
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    // Find the bid
+    const bid = await Bid.findOne({ bidderEmail: senderEmail, tripId: tripId });
+    if (!bid) {
+      return res.status(404).send({ message: 'Bid not found' });
+    }
+
+    // Check if the bid is not already cancelled or rejected
+    if (bid.status === 'cancelled' || bid.status === 'rejected') {
+      return res.status(400).send({ message: 'Bid cannot be refunded as it is already cancelled or rejected' });
+    }
+
+    // Find the wallet by user ID
+    const wallet = await Wallet.findOne({ userId: user._id });
+    if (!wallet) {
+      return res.status(404).send({ message: 'Wallet not found' });
+    }
+
+    // Update the wallet balance
+    wallet.balance += bid.bid;
+    wallet.transactions.push({
+      type: 'refund',
+      amount: bid.bid,
+      date: new Date()
+    });
+    await wallet.save();
+
+    // Update the bid status
+    bid.status = 'cancelled';
+    await bid.save();
+
+    // Success response
+    res.send({ message: 'Refund processed successfully', balance: wallet.balance });
+  } catch (error) {
+    console.error('Refund processing error:', error);
+    res.status(500).send({ message: 'Internal server error' });
   }
 });
 
@@ -760,6 +836,7 @@ app.get("/Trips/:userId", async (req, res) => {
           trip: trip,
           user: {
             userId: user1._id,
+            email: user1.email,
             username: user1.name,
             profilePic: user1.profilePic,
             rating: user1.rating,
