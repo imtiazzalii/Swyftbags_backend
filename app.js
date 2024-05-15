@@ -721,7 +721,7 @@ app.put("/updateBidStatus/:bidId", async (req, res) => {
 });
 
 app.get("/allTrips", async (req, res) => {
-  const { departureCity, arrivalCity, weight, cost, transportMode } = req.query;
+  const { departureCity, arrivalCity, weight,transportMode } = req.query;
 
   try {
     let conditions = {};
@@ -732,7 +732,8 @@ app.get("/allTrips", async (req, res) => {
     if (arrivalCity && arrivalCity !== "")
       conditions["destination"] = arrivalCity;
     // Assuming you want to match exact strings or simple pattern (not numeric comparison)
-    if (weight && weight !== "") conditions["capacity"] >= weight;
+    if (weight && weight !== "") 
+      conditions["capacity"] = { $gte: parseFloat(weight) };  
     if (transportMode && transportMode !== "")
       conditions["tmode"] = transportMode;
 
