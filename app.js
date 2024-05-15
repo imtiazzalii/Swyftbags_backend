@@ -1379,6 +1379,36 @@ app.post("/friends/remove", async (req, res) => {
   }
 });
 
+app.post("/friends/remove1", async (req, res) => {
+  const { senderEmail, travellerEmail } = req.body;
+
+  try {
+    // Find sender and traveller by their emails
+    const sender = await User.findOne({ _id: senderEmail });
+    const traveller = await User.findOne({ email: travellerEmail });
+
+    if (!sender || !traveller) {
+      return res.status(404).json({ error: "One or both users not found" });
+    }
+
+    // Remove each other from friends array
+    await User.updateOne(
+      { _id: sender._id },
+      { $pull: { friends: traveller._id } }
+    );
+
+    await User.updateOne(
+      { _id: traveller._id },
+      { $pull: { friends: sender._id } }
+    );
+
+    res.status(200).json({ message: "Users removed from each other's friends list successfully" });
+  } catch (error) {
+    console.error("Error removing users from friends list:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   host:"smtp.gmail.com",
