@@ -574,17 +574,17 @@ app.delete('/myOrders/trips/:tripId', async (req, res) => {
 });
 
 app.post('/refund', async (req, res) => {
-  const { senderEmail, tripId } = req.body;
+  const { userId, tripId } = req.body;
 
   try {
     // Find the user by email to get the userId
-    const user = await UserInfo.findOne({ email: senderEmail });
+    const user = await User.findOne({ _id: userId });
     if (!user) {
       return res.status(404).send({ message: 'User not found' });
     }
 
     // Find the bid
-    const bid = await Bid.findOne({ bidderEmail: senderEmail, tripId: tripId });
+    const bid = await Bid.findOne({ bidderEmail: user.email, tripId: tripId });
     if (!bid) {
       return res.status(404).send({ message: 'Bid not found' });
     }
