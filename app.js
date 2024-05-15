@@ -796,6 +796,7 @@ app.get("/myOrders/:userId", async (req, res) => {
           trip: trip,
           user: {
             userId: user1._id,
+            email: user1.email,
             username: user1.name,
             profilePic: user1.profilePic,
             rating: user1.rating,
